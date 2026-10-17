@@ -1,36 +1,53 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Starship Mission Planner · 3D Viewer</title>
+<title>Starship Mission Analysis — Flight Dynamics & Crew Radiation</title>
 <link rel="stylesheet" href="./style.css">
 <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head><body>
-<canvas id="c"></canvas>
-<div id="labels"></div>
-<div id="tip"></div>
-<aside id="panel">
-  <header>
-    <div class="brand"><span class="logo"></span><div><h1>Starship Mission Planner</h1><p>Patched-conic trajectories · JPL DE440s</p></div></div>
-    <button id="collapse" aria-label="toggle panel">⌄</button>
+<div id="app">
+  <header id="bar">
+    <div class="id"><b>STARSHIP MISSION ANALYSIS</b><span>FDO / RAD CONSOLE · PATCHED-CONIC · JPL DE440s</span></div>
+    <nav id="targets"></nav>
+    <div id="scale" class="seg"><button data-s="true" class="on">TRUE SCALE</button><button data-s="false">ENLARGED (NOT TO SCALE)</button></div>
+    <div class="clock"><span class="k">EPOCH UTC</span><span id="date">—</span><span class="k">MET</span><span id="met">—</span></div>
   </header>
-  <nav id="targets"></nav>
-  <div id="scale"><button data-s="true" class="seg on">True scale</button><button data-s="false" class="seg">Enlarged planets (not to scale)</button></div>
-  <div id="scalenote" class="note"></div>
-  <section id="cards"></section>
-  <section id="detail"></section>
-  <details class="explain"><summary>What are “tankers”?</summary>
-    <p>Starship can't reach other planets on the propellant left after launching to orbit. The plan is to refuel it in low Earth orbit: <b>N tankers means N extra Starship launches</b> that each carry propellant up and pump it into the ship (or a depot) — not bigger tanks. Total launches = 1 ship + N tankers.</p>
-    <p>Ship-to-ship cryogenic propellant transfer in orbit <b>has not yet been demonstrated</b> (so far only an internal tank-to-tank transfer on flight test 3). Per-tanker delivery (100–150 t) and boil-off are public estimates.</p></details>
-  <footer>Vehicle figures are public <b>estimates</b>, not SpaceX specs. Stars: HYG v4.1 catalogue (to mag 6.5, true positions); Milky Way band is schematic. Drag to orbit · scroll/pinch to zoom · click a planet to focus · double-click to reset.</footer>
-</aside>
-<div id="timeline">
-  <button id="play" class="round" aria-label="play">▶</button>
-  <div class="tl-main">
-    <div class="tl-top"><span id="date">—</span><span id="met"></span>
-      <select id="speed"><option value="10">10 d/s</option><option value="45" selected>45 d/s</option><option value="120">120 d/s</option><option value="365">1 yr/s</option></select></div>
-    <div id="track"><div id="fill"></div><div id="ticks"></div><div id="knob"></div></div>
-  </div>
+  <section id="left" class="col">
+    <div class="ph"><span>MISSION COMPARISON</span><span class="hint">click header to sort · row to select</span></div>
+    <div class="tbl-wrap" id="cmpwrap"><table id="cmp"></table></div>
+    <div class="ph"><span>SELECTED · EVENT SEQUENCE</span><span id="selname" class="hint"></span></div>
+    <div class="tbl-wrap" id="evwrap"><table id="evt"></table></div>
+    <div class="ph"><span>Δv BUDGET / VEHICLE</span></div>
+    <div id="budget" class="kv"></div>
+    <details class="explain"><summary>TANKERS — what the number means</summary>
+      <p>N tankers = N additional Starship launches that transfer propellant to the crewed ship in LEO (not larger tanks). Total launches = 1 + N. Ship-to-ship cryogenic transfer has <b>not yet been demonstrated</b>; per-tanker load (100–150 t) and boil-off are public estimates.</p></details>
+  </section>
+  <section id="scene" class="col">
+    <canvas id="c"></canvas><div id="labels"></div><div id="tip"></div>
+    <div id="scalenote" class="overlay-note"></div>
+    <div class="legend"><span><i class="ln fl"></i>FLOWN</span><span><i class="ln pl"></i>PLANNED</span><span><i class="sq la"></i>LAUNCH/ARR</span><span><i class="sq fb"></i>FLYBY</span><span><i class="sq ds"></i>DSM</span><span><i class="sq hz"></i>HAZARD</span></div>
+  </section>
+  <section id="right" class="col">
+    <div class="ph"><span>CREW RADIATION · EFFECTIVE DOSE (mSv)</span><label class="tog"><input type="checkbox" id="shelter" checked> STORM SHELTER <span id="shval"></span></label></div>
+    <canvas id="dosechart"></canvas>
+    <div id="radnow" class="kv"></div>
+    <table id="radtbl" class="mini"></table>
+    <div class="ph"><span>CREW COMPARTMENT · CUTAWAY</span><span class="hint" id="cutnote">hull 4 mm 304L · shelter water</span></div>
+    <div id="cutwrap"><canvas id="cut"></canvas><div id="cutleg"></div></div>
+  </section>
+  <section id="hz" class="col">
+    <div class="ph"><span>HAZARDS · RISK SUMMARY</span><span class="hint">probabilities only where defensible · click row for time</span></div>
+    <div class="tbl-wrap"><table id="hzt"></table></div>
+  </section>
+  <footer id="timeline">
+    <button id="play" aria-label="play">PLAY</button>
+    <div class="tl-main">
+      <div id="track"><canvas id="tlc"></canvas><div id="ticks"></div><div id="knob"></div></div>
+      <div class="tl-axis" id="tlaxis"></div>
+    </div>
+    <select id="speed"><option value="10">10 d/s</option><option value="45" selected>45 d/s</option><option value="120">120 d/s</option><option value="365">365 d/s</option></select>
+  </footer>
 </div>
-<div id="loading">Loading ephemeris…</div>
+<div id="loading">LOADING EPHEMERIS…</div>
 <script type="module" src="./app.js"></script>
 </body></html>
