@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Starship Mission Planner · 3D Viewer</title>
+<link rel="stylesheet" href="./style.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+</head><body>
+<canvas id="c"></canvas>
+<div id="labels"></div>
+<div id="tip"></div>
+<aside id="panel">
+  <header>
+    <div class="brand"><span class="logo"></span><div><h1>Starship Mission Planner</h1><p>Patched-conic trajectories · JPL DE440s</p></div></div>
+    <button id="collapse" aria-label="toggle panel">⌄</button>
+  </header>
+  <nav id="targets"></nav>
+  <section id="cards"></section>
+  <section id="detail"></section>
+  <footer>Vehicle figures are public <b>estimates</b>, not SpaceX specs. Drag to orbit · scroll/pinch to zoom · click a planet to focus · double-click to reset.</footer>
+</aside>
+<div id="timeline">
+  <button id="play" class="round" aria-label="play">▶</button>
+  <div class="tl-main">
+    <div class="tl-top"><span id="date">—</span><span id="met"></span>
+      <select id="speed"><option value="10">10 d/s</option><option value="45" selected>45 d/s</option><option value="120">120 d/s</option><option value="365">1 yr/s</option></select></div>
+    <div id="track"><div id="fill"></div><div id="ticks"></div><div id="knob"></div></div>
+  </div>
+</div>
+<div id="loading">Loading ephemeris…</div>
+<script type="module" src="./app.js"></script>
+</body></html>
