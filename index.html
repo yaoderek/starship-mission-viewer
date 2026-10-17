@@ -14,9 +14,14 @@
     <button id="collapse" aria-label="toggle panel">⌄</button>
   </header>
   <nav id="targets"></nav>
+  <div id="scale"><button data-s="true" class="seg on">True scale</button><button data-s="false" class="seg">Enlarged planets (not to scale)</button></div>
+  <div id="scalenote" class="note"></div>
   <section id="cards"></section>
   <section id="detail"></section>
-  <footer>Vehicle figures are public <b>estimates</b>, not SpaceX specs. Drag to orbit · scroll/pinch to zoom · click a planet to focus · double-click to reset.</footer>
+  <details class="explain"><summary>What are “tankers”?</summary>
+    <p>Starship can't reach other planets on the propellant left after launching to orbit. The plan is to refuel it in low Earth orbit: <b>N tankers means N extra Starship launches</b> that each carry propellant up and pump it into the ship (or a depot) — not bigger tanks. Total launches = 1 ship + N tankers.</p>
+    <p>Ship-to-ship cryogenic propellant transfer in orbit <b>has not yet been demonstrated</b> (so far only an internal tank-to-tank transfer on flight test 3). Per-tanker delivery (100–150 t) and boil-off are public estimates.</p></details>
+  <footer>Vehicle figures are public <b>estimates</b>, not SpaceX specs. Stars: HYG v4.1 catalogue (to mag 6.5, true positions); Milky Way band is schematic. Drag to orbit · scroll/pinch to zoom · click a planet to focus · double-click to reset.</footer>
 </aside>
 <div id="timeline">
   <button id="play" class="round" aria-label="play">▶</button>

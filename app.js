@@ -18,26 +18,30 @@ const cap = s => s ? s[0].toUpperCase() + s.slice(1) : '';
 
 // ---------- renderer / scene ----------
 const canvas = $('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, 1, 0.0005, 5000);
+const camera = new THREE.PerspectiveCamera(45, 1, 1e-6, 5000);
+const skyScene = new THREE.Scene(); const skyCam = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
 camera.up.set(0, 0, 1); camera.position.set(0, -6, 4);
 const controls = new OrbitControls(camera, canvas);
-controls.enableDamping = true; controls.dampingFactor = 0.07; controls.minDistance = 0.02; controls.maxDistance = 400;
+controls.enableDamping = true; controls.dampingFactor = 0.07; controls.minDistance = 2e-7; controls.maxDistance = 300; controls.zoomSpeed = 1.6;
 const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new RenderPass(skyScene, skyCam));
+const mainPass = new RenderPass(scene, camera); mainPass.clear = false; mainPass.clearDepth = true; composer.addPass(mainPass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.9, 0.55, 0.62); composer.addPass(bloom);
 composer.addPass(new OutputPass());
 const lineMats = [];
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false); composer.setSize(w, h); bloom.setSize(w, h);
-  camera.aspect = w / h;
+  camera.aspect = w / h; skyCam.aspect = w / h;
   // keep the scene centred in the area not covered by the panel
   if (w < 760) camera.setViewOffset(w, h, 0, h * 0.2, w, h); else camera.setViewOffset(w, h, -Math.min(200, w * 0.13), 0, w, h);
   camera.updateProjectionMatrix();
+  if (w < 760) skyCam.setViewOffset(w, h, 0, h * 0.2, w, h); else skyCam.setViewOffset(w, h, -Math.min(200, w * 0.13), 0, w, h);
+  skyCam.updateProjectionMatrix();
   lineMats.forEach(m => m.resolution.set(w, h));
 }
 addEventListener('resize', resize);
@@ -83,35 +87,37 @@ function planetTex(name) {
 }
 
 // ---------- starfield + milky way ----------
-(function sky() {
-  const r = rng(42), N = 9000, M = 26000, pos = [], col = [], size = [];
-  const tilt = new THREE.Matrix4().makeRotationX(THREE.MathUtils.degToRad(60.2)).multiply(new THREE.Matrix4().makeRotationZ(1.1));
-  const tmp = new THREE.Vector3(), c = new THREE.Color();
-  for (let i = 0; i < N + M; i++) {
-    let v;
-    if (i < N) v = tmp.randomDirection();
-    else { // band around a great circle, gaussian latitude, denser toward a "core"
-      const lon = r() * Math.PI * 2, g = (r() + r() + r() + r() - 2) * 0.16 * (1.3 - 0.6 * Math.cos(lon));
-      v = tmp.set(Math.cos(lon) * Math.cos(g), Math.sin(lon) * Math.cos(g), Math.sin(g)).applyMatrix4(tilt);
-    }
-    v.multiplyScalar(1500); pos.push(v.x, v.y, v.z);
-    const temp = r(); c.setHSL(temp < .3 ? .6 : temp < .8 ? .12 : .02, i < N ? .35 : .25, i < N ? .7 + r() * .3 : .55 + r() * .25);
-    col.push(c.r, c.g, c.b);
-    size.push(i < N ? (r() < .03 ? 3.2 : .8 + r() * 1.6) : .6 + r() * 1.1);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setAttribute('size', new THREE.Float32BufferAttribute(size, 1));
-  const m = new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true,
-    uniforms: { pr: { value: Math.min(devicePixelRatio, 2) } },
-    vertexShader: `attribute float size; varying vec3 vC; uniform float pr; void main(){ vC=color; vec4 mv=modelViewMatrix*vec4(position,1.); gl_PointSize=size*pr; gl_Position=projectionMatrix*mv; }`,
-    fragmentShader: `varying vec3 vC; void main(){ float d=length(gl_PointCoord-.5); float a=smoothstep(.5,0.,d); gl_FragColor=vec4(vC*.85,a*.9); }`
-  });
-  const p = new THREE.Points(g, m); p.frustumCulled = false; p.renderOrder = -1; scene.add(p);
-  scene.userData.sky = p;
-})();
+// ---------- real sky: HYG v4.1 catalogue (mag <= 6.5), ecliptic J2000; schematic Milky Way on the real galactic plane ----------
+function bvToRGB(bv) { // B-V -> temperature (Ballesteros 2012) -> approximate sRGB of a blackbody
+  bv = Math.max(-0.4, Math.min(2.0, bv));
+  const T = 4600 * (1 / (0.92 * bv + 1.7) + 1 / (0.92 * bv + 0.62)), t = T / 100;
+  let r, g, b;
+  r = t <= 66 ? 255 : 329.7 * Math.pow(t - 60, -0.1332);
+  g = t <= 66 ? 99.47 * Math.log(t) - 161.12 : 288.12 * Math.pow(t - 60, -0.0755);
+  b = t >= 66 ? 255 : t <= 19 ? 0 : 138.52 * Math.log(t - 10) - 305.04;
+  return [r, g, b].map(x => Math.max(0, Math.min(255, x)) / 255);
+}
+async function loadSky() {
+  const d = await (await fetch('sky.json')).json();
+  const mk = (pts, vs, fs) => {
+    const g = new THREE.BufferGeometry(), P = [], C = [], S = [];
+    for (const q of pts) { const [x, y, z, c, sz] = vs(q); P.push(x * 5, y * 5, z * 5); C.push(...c); S.push(sz); }
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+    g.setAttribute('size', new THREE.Float32BufferAttribute(S, 1));
+    const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, vertexColors: true,
+      uniforms: { pr: { value: Math.min(devicePixelRatio, 2) } },
+      vertexShader: `attribute float size; varying vec3 vC; uniform float pr; void main(){ vC=color; gl_PointSize=size*pr; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+      fragmentShader: fs });
+    const pt = new THREE.Points(g, m); pt.frustumCulled = false; skyScene.add(pt);
+  };
+  mk(d.stars, q => { const f = Math.pow(10, -0.4 * q[3]); const c = bvToRGB(q[4]); const a = Math.min(1, 0.18 + 0.9 * Math.pow(f, 0.42));
+    return [q[0], q[1], q[2], c.map(x => x * a), Math.max(1.2, Math.min(7, 2.2 + 3.2 * Math.pow(f, 0.3)))]; },
+    `varying vec3 vC; void main(){ float d=length(gl_PointCoord-.5); float a=smoothstep(.5,.0,d); a*=a; gl_FragColor=vec4(vC,a); }`);
+  mk(d.milkyway, q => [q[0], q[1], q[2], [0.050 * q[3], 0.055 * q[3], 0.070 * q[3]], 14],
+    `varying vec3 vC; void main(){ float d=length(gl_PointCoord-.5); float a=smoothstep(.5,.0,d); gl_FragColor=vec4(vC,a*.55); }`);
+}
+const skyReady = loadSky();
 
 // ---------- sun ----------
 const sun = new THREE.Mesh(new THREE.SphereGeometry(0.05, 48, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, .85, .55).multiplyScalar(3) }));
@@ -161,10 +167,20 @@ function interp(track, jd) {
   const a = track[lo], b = track[hi], f = (jd - a[0]) / (b[0] - a[0]);
   return [a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), a[3] + f * (b[3] - a[3])];
 }
-function baseSize(name) { return 0.012 * Math.pow(RADIUS[name] / 6371, 0.55); }
+const AU_KM = 149597870.7, SUN_R = 695700 / AU_KM;
+let trueScale = true;
+function baseSize(name) { return trueScale ? RADIUS[name] / AU_KM : 0.012 * Math.pow(RADIUS[name] / 6371, 0.55); }
+function dotSprite(color, px) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color, transparent: true, depthWrite: false, depthTest: false, sizeAttenuation: false, blending: THREE.AdditiveBlending }));
+  s.scale.setScalar(px / 1000); s.renderOrder = 5; return s;
+}
+function updateClip() {
+  const d = camera.position.distanceTo(controls.target);
+  camera.near = Math.max(1e-9, d * 1e-3); camera.far = Math.max(200, d * 1e4); camera.updateProjectionMatrix();
+}
 
 function buildPlanets() {
-  orbitGroup.clear(); for (const p of Object.values(planets)) scene.remove(p.mesh);
+  orbitGroup.clear(); for (const p of Object.values(planets)) { scene.remove(p.mesh); scene.remove(p.dot); } hoverables = [];
   clearLabels(L => L.el.classList.contains('planet')); planets = {};
   for (const name of ORDER) {
     const P = data.planets[name]; if (!P) continue;
@@ -180,7 +196,9 @@ function buildPlanets() {
     const atm = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: PCOL[name], transparent: true, opacity: .35, blending: THREE.AdditiveBlending, depthWrite: false }));
     atm.scale.setScalar(3.2); mesh.add(atm);
     mesh.userData = { kind: 'planet', name }; scene.add(mesh); hoverables.push(mesh);
-    planets[name] = { mesh, track: P.track };
+    const dot = dotSprite(PCOL[name], 9); dot.userData = { kind: 'planet', name }; scene.add(dot); hoverables.push(dot);
+    mesh.userData.atm = atm;
+    planets[name] = { mesh, track: P.track, dot };
     makeLabel(cap(name), 'planet', name === data.target ? 60 : 40, () => mesh.position, { title: cap(name), body: `Radius ${RADIUS[name].toLocaleString()} km · click to focus` });
   }
 }
@@ -237,7 +255,8 @@ function renderCards() {
       <span class="badge ${s.feasible ? 'ok' : 'no'}">${s.feasible ? 'FEASIBLE' : 'NOT FEASIBLE'}</span></div>
       <div class="sub">${s.launch} → ${s.arrive} · ${m.model}${m.hazards.length ? ' · <span class="hz">⚠ ' + m.hazards.length + '</span>' : ''}</div>
       <div class="stats"><div class="stat"><b>${s.dv_total.toFixed(2)}</b><span>Δv km/s</span></div><div class="stat"><b>${s.tof_years.toFixed(1)}</b><span>TOF yr</span></div>
-      <div class="stat"><b>${s.tankers_needed ?? '—'}</b><span>tankers</span></div><div class="stat"><b>${s.c3.toFixed(0)}</b><span>C3</span></div></div></div>`;
+      <div class="stat"><b>${s.tankers_needed ?? '—'}</b><span>tankers</span></div><div class="stat"><b>${s.tankers_needed == null ? '—' : s.tankers_needed + 1}</b><span>launches</span></div></div>
+      <div class="sub">C3 ${s.c3.toFixed(1)} km²/s² · launches = 1 ship + tankers</div></div>`;
   }).join('');
   document.querySelectorAll('.card').forEach(el => el.onclick = () => selectMission(+el.dataset.i));
 }
@@ -258,7 +277,7 @@ function flyTo(target, dist, dir) {
 }
 function focusPlanet(name) {
   focus = name; const p = planets[name].mesh;
-  flyTo(p.position, Math.max(0.25, p.scale.x * 14));
+  flyTo(p.position, trueScale ? baseSize(name) * 7 : Math.max(0.25, p.scale.x * 14));
 }
 
 // ---------- time ----------
@@ -272,16 +291,20 @@ function updateWorld() {
   let prevFocus = focus ? planets[focus].mesh.position.clone() : null;
   for (const [name, p] of Object.entries(planets)) {
     p.mesh.position.set(...interp(p.track, jd));
-    p.mesh.scale.setScalar(baseSize(name) * (focus === name ? Math.min(k, 1.5) : k));
+    p.mesh.scale.setScalar(trueScale ? baseSize(name) : baseSize(name) * (focus === name ? Math.min(k, 1.5) : k));
+    p.dot.position.copy(p.mesh.position);
+    const px = p.mesh.scale.x / Math.max(1e-12, camera.position.distanceTo(p.mesh.position)) * innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+    p.dot.material.opacity = trueScale ? Math.max(0, Math.min(1, (6 - px) / 4)) : 0;
+    p.mesh.userData.atm.visible = !trueScale;
     p.mesh.rotation.y += 0.002;
   }
   if (focus && prevFocus && !tween) { const dlt = planets[focus].mesh.position.clone().sub(prevFocus); controls.target.add(dlt); camera.position.add(dlt); }
-  ship.position.set(...interp(mission.traj, jd)); ship.scale.setScalar(0.006 * k);
-  const ks = Math.max(1, Math.sqrt(k)); sun.scale.setScalar(ks); corona.scale.setScalar(0.32 * ks);
+  ship.position.set(...interp(mission.traj, jd)); ship.scale.setScalar(trueScale ? 0.004 * camD : 0.006 * k);
+  if (trueScale) { sun.scale.setScalar(SUN_R / 0.05); corona.scale.setScalar(Math.max(SUN_R * 12, 0.012 * camD)); } else { const ks = Math.max(1, Math.sqrt(k)); sun.scale.setScalar(ks); corona.scale.setScalar(0.32 * ks); }
   // bright traveled segment: count segments with time <= jd
   let lo = 0, hi = mission.traj.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (mission.traj[m][0] <= jd) lo = m; else hi = m; }
   trajBright.geometry.instanceCount = Math.max(1, Math.min(nSeg, lo));
-  for (const o of missionGroup.children) if (o.isSprite && o.userData.kind === 'event') o.scale.setScalar(0.05 * k);
+  for (const o of missionGroup.children) if (o.isSprite && o.userData.kind === 'event') o.scale.setScalar(0.014 * camD);
   $('date').textContent = fmt(jd);
   $('met').textContent = `T+${Math.round(jd - t0)} d  ·  ${((jd - t0) / 365.25).toFixed(2)} yr  ·  arrival ${fmt(t1)}`;
   $('fill').style.width = $('knob').style.left = (t * 100) + '%';
@@ -329,15 +352,23 @@ function frame(now) {
     if (focus) { const fp = planets[focus].mesh.position; controls.target.copy(fp); }
     if (tween.t >= 1) tween = null;
   }
-  updateWorld(); controls.update(); scene.userData.sky.position.copy(camera.position);
+  updateWorld(); controls.update(); updateClip();
+  skyCam.quaternion.copy(camera.quaternion);
   composer.render(); layoutLabels();
 }
 renderer.setAnimationLoop(frame);
 
 // ---------- boot ----------
+function setScale(t) {
+  trueScale = t; document.querySelectorAll('#scale button').forEach(b => b.classList.toggle('on', (b.dataset.s === 'true') === t));
+  $('scalenote').textContent = t ? 'True scale: real radii and distances. From afar planets are sub-pixel, so coloured dots mark them (dots are not to scale). Scroll/pinch zooms logarithmically down to a single planet; click a planet to fly to it.'
+    : 'ENLARGED PLANETS — NOT TO SCALE: bodies drawn hundreds to thousands of times larger than real so they are visible. Distances are real.';
+  if (focus) focusPlanet(focus);
+}
+document.querySelectorAll('#scale button').forEach(b => b.onclick = () => setScale(b.dataset.s === 'true'));
 const NAMES = { 'galileo_veega_1989.json': 'Galileo 1989 (validation)' };
 async function boot() {
-  resize();
+  resize(); await skyReady; setScale(new URLSearchParams(location.search).get('scale') !== 'enlarged');
   const idx = await (await fetch('missions/index.json')).json();
   const sorted = idx.sort((a, b) => (ORDER.indexOf(a.replace('.json', '')) + 1 || 99) - (ORDER.indexOf(b.replace('.json', '')) + 1 || 99));
   $('targets').innerHTML = sorted.map(f => `<button class="chip" data-f="${f}">${NAMES[f] || cap(f.replace('.json', ''))}</button>`).join('');
