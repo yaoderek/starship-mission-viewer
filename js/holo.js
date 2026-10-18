@@ -1,22 +1,27 @@
 // Holographic vehicle viewer: procedural models of every vehicle in the catalogue,
 // drawn as a monochrome hologram (fresnel rim glow, scanlines, edge lines, flicker).
 import * as THREE from 'three';
+import { buildStarship, DIM, ASCENT } from './starship.js';
+import { OrbitControls } from '../vendor/OrbitControls.js';
+import { buildRocket } from './rockets.js';
+const ROCKETS = new Set(['titan3e', 'titan4b', 'atlas541']);
+const ROCKET_NAME = { titan3e: 'TITAN IIIE / CENTAUR', titan4b: 'TITAN IVB / CENTAUR', atlas541: 'ATLAS V 541' };
 
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
 // ------------------------------------------------------------------ hologram material
-function holoMat(u) {
+function holoMat(u, int = 1) {
   return new THREE.ShaderMaterial({
-    uniforms: u, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    uniforms: { ...u, uInt: { value: int } }, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
     vertexShader: `varying vec3 vN; varying vec3 vV; varying float vY;
       void main(){ vec4 wp = modelMatrix * vec4(position, 1.); vY = wp.y; vN = normalize(mat3(modelMatrix) * normal);
       vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix * viewMatrix * wp; }`,
-    fragmentShader: `uniform vec3 uCol; uniform float uTime; uniform float uFlick; varying vec3 vN; varying vec3 vV; varying float vY;
+    fragmentShader: `uniform vec3 uCol; uniform float uTime; uniform float uFlick; uniform float uInt; varying vec3 vN; varying vec3 vV; varying float vY;
       void main(){
         float f = pow(1. - abs(dot(normalize(vN), vV)), 2.2);
         float scan = .55 + .45 * smoothstep(.35, .5, abs(fract(vY * 38. - uTime * .6) - .5));
         float band = .85 + .5 * smoothstep(.97, 1., sin(vY * 2.2 - uTime * 1.7));
-        float a = (.09 + f * .85) * scan * band * uFlick;
+        float a = (.09 + f * .85) * scan * band * uFlick * uInt;
         gl_FragColor = vec4(uCol * a, a);
       }`,
   });
@@ -141,6 +146,8 @@ const BUILD = {
 };
 BUILD['starship-lite'] = BUILD['starship-heavy'] = BUILD.starship;
 
+const STARSHIP = new Set(['starship', 'starship-lite', 'starship-heavy']);
+
 // ------------------------------------------------------------------ viewer
 export class Holo {
   constructor(canvas, host, opts = {}) {
@@ -167,19 +174,146 @@ export class Holo {
       fragmentShader: 'uniform vec3 uCol; uniform float uThr; uniform float uTime; varying float vY; void main(){ float a = uThr * pow(1. - vY, 2.2) * (.38 + .1 * sin(uTime * 40. + vY * 20.)); gl_FragColor = vec4(uCol * a, a); }' }));
     this.plume.rotation.x = Math.PI;
     this.label = opts.label || null;
-    new ResizeObserver(() => this.fit()).observe(host); this.fit();
+    // drag to orbit, scroll to zoom, right-drag to pan, double-click to reset; the idle sweep pauses while you handle it
+    const ctl = this.ctl = new OrbitControls(this.cam, canvas);
+    Object.assign(ctl, { enableDamping: true, dampingFactor: 0.08, minDistance: 0.5, maxDistance: 14, rotateSpeed: 0.8, zoomSpeed: 1.1 });
+    ctl.target.set(0, 0.55, 0); this.sweep = 0; this.idle = 99;
+    ctl.addEventListener('start', () => { this.manual = true; this.idle = 0; canvas.style.cursor = 'grabbing'; });
+    ctl.addEventListener('end', () => { this.idle = 0; canvas.style.cursor = 'grab'; });
+    canvas.style.cursor = 'grab'; canvas.style.touchAction = 'none';
+    canvas.addEventListener('dblclick', () => { this.manual = false; this.fit(true); });
+    new ResizeObserver(() => this.fit()).observe(host); this.fit(true);
   }
-  fit() {
+  fit(reset) {
     const b = this.host.getBoundingClientRect(); this.w = Math.max(1, b.width); this.h = Math.max(1, b.height);
     this.r.setSize(this.w, this.h, false); this.cam.aspect = this.w / this.h;
-    const vf = THREE.MathUtils.degToRad(this.cam.fov) / 2, hf = Math.atan(Math.tan(vf) * this.cam.aspect), d = 1.5 / Math.sin(Math.min(vf, hf));
-    this.cam.position.set(0, 0.55 + d * 0.3, d * 0.95); this.cam.lookAt(0, 0.5, 0); this.cam.updateProjectionMatrix();
+    const vf = THREE.MathUtils.degToRad(this.cam.fov) / 2, hf = Math.atan(Math.tan(vf) * this.cam.aspect), d = Math.max(1.5 / Math.tan(hf), 0.62 / Math.tan(vf));
+    if (reset || !this.manual) { this.cam.position.set(0, 0.55 + d * 0.3, d * 0.95); if (this.ctl) this.ctl.target.set(0, 0.55, 0); this.cam.lookAt(0, 0.55, 0); }
+    this.cam.updateProjectionMatrix();
   }
-  show(id) {
-    if (id === this.id) return; this.id = id;
-    this.turn.clear();
-    const build = BUILD[id] || BUILD.starship, k = kit(this.mat, this.edge), info = build(k) || {};
-    const g = k.g, box = new THREE.Box3().setFromObject(g), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  show(id, mode = 'ship') {
+    if (id === this.id && mode === this.mode) return; this.id = id; this.mode = mode;
+    this.turn.clear(); this.rig = null; this.rocket = null; this.asc = null;
+    if (STARSHIP.has(id)) return this.showStarship(mode);
+    if (ROCKETS.has(id)) return this.showRocket(id);
+    const k = kit(this.mat, this.edge), info = (BUILD[id] || BUILD.starship)(k) || {}; this.place(k.g, info, id);
+  }
+
+  // ---------------------------------------------------------------- Starship V3 stack
+  showStarship(mode) {
+    if (!this.smats) this.showStarshipMats();
+    const rig = this.rig = buildStarship(this.smats);
+    // plumes on every engine, each with its own throttle uniform
+    const plumeGeo = new THREE.CylinderGeometry(1, 1.25, 1, 20, 1, true); plumeGeo.translate(0, -0.5, 0);
+    const mkPlume = (eng, vac) => {
+      const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+        uniforms: { ...this.u, uThr: { value: 0 } }, vertexShader: 'varying float vY; void main(){ vY = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+        fragmentShader: 'uniform vec3 uCol; uniform float uThr; uniform float uTime; varying float vY; void main(){ float a = uThr * pow(vY, 1.8) * (.5 + .12 * sin(uTime * 47. + vY * 31.)); gl_FragColor = vec4(uCol * a, a); }' });
+      const p = new THREE.Mesh(plumeGeo, m);
+      p.position.copy(eng.pos); p.scale.set(eng.r * 0.95, vac ? 9 : 14, eng.r * 0.95); p.visible = false; parent.add(p); eng.plume = p;
+    };
+    let parent = rig.booster; rig.boosterEngines.forEach(e => mkPlume(e, false));
+    parent = rig.ship; rig.shipEngines.forEach(e => mkPlume(e, e.vac));
+    // stack lies on its side, nose to the right; `focus` slides so the framed part stays centred
+    const holder = new THREE.Group(), focus = new THREE.Group(); holder.rotation.z = -Math.PI / 2; holder.position.y = 0.62;
+    focus.add(rig.root); holder.add(focus); this.turn.add(holder);
+    this.holder = holder; this.focus = focus; this.flick = 0.15;
+    this.info = { engine: true, length: mode === 'stack' ? DIM.stackH : DIM.shipH };
+    this.setStage(mode === 'stack' ? { frame: 0, booster: true } : { frame: 1, booster: false });
+    if (this.label) this.label.textContent = mode === 'stack' ? `STACK ${DIM.stackH} m · SHIP ${DIM.shipH} m · BOOSTER ${DIM.boosterH} m` : `SHIP ${DIM.shipH} m · V3`;
+  }
+  // frame 0 = whole stack, 1 = ship only; gap/flip move the booster after separation
+  setStage({ frame = 1, booster = false, gap = 0, flip = 0, bThr = null, sThr = null, entry = 0 }) {
+    const rig = this.rig; if (!rig) return;
+    const k = frame * frame * (3 - 2 * frame);
+    const len = DIM.stackH + (DIM.shipH - DIM.stackH) * k, cy = DIM.stackH / 2 + (DIM.boosterH + DIM.shipH / 2 - DIM.stackH / 2) * k;
+    this.holder.scale.setScalar(2.2 / len); this.focus.position.y = -cy;
+    rig.booster.visible = booster; rig.booster.position.y = -gap;
+    rig.booster.rotation.x = flip * Math.PI; rig.booster.position.z = 0;
+    if (flip) { const h = DIM.boosterH / 2, a = flip * Math.PI; rig.booster.position.y = -gap + h * (1 - Math.cos(a)); rig.booster.position.z = -h * Math.sin(a); }   // rotate about its middle
+    const thr = (e, v) => { e.plume.material.uniforms.uThr.value = v; e.plume.visible = v > 0.01; };
+    rig.boosterEngines.forEach(e => thr(e, booster && bThr ? bThr(e.ring) : 0));
+    rig.shipEngines.forEach(e => thr(e, sThr == null ? 0 : sThr * (e.vac ? 0.8 : 1)));
+    for (const [key, f] of Object.entries(rig.flaps)) f.rotation.y = entry * (key.startsWith('fwd') ? 0.35 : 0.5) * (key.endsWith('L') ? 1 : -1);
+    this.smats.shield.uniforms.uInt.value = 1.35 + 2.2 * entry;
+  }
+  // ---------------------------------------------------------------- historical launchers
+  showRocket(id) {
+    if (!this.smats) this.showStarshipMats();
+    const R = this.rocket = buildRocket(id, this.smats);
+    const plumeGeo = new THREE.CylinderGeometry(1, 1.25, 1, 20, 1, true); plumeGeo.translate(0, -0.5, 0);
+    const mk = (eng, grp, len) => {
+      const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+        uniforms: { ...this.u, uThr: { value: 0 } }, vertexShader: 'varying float vY; void main(){ vY = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+        fragmentShader: 'uniform vec3 uCol; uniform float uThr; uniform float uTime; varying float vY; void main(){ float a = uThr * pow(vY, 1.8) * (.5 + .12 * sin(uTime * 47. + vY * 31.)); gl_FragColor = vec4(uCol * a, a); }' });
+      const p = new THREE.Mesh(plumeGeo, m); p.position.copy(eng.pos); p.scale.set(eng.r * 0.95, len, eng.r * 0.95); p.visible = false; grp.add(p); eng.plume = p;
+    };
+    R.engines.boosters.forEach(e => mk(e, e.grp, 16)); R.engines.core.forEach(e => mk(e, R.core, 14)); R.engines.upper.forEach(e => mk(e, R.upper, 8)); R.engines.centaur.forEach(e => mk(e, R.centaur, 9));
+    R.boosters.forEach(b => b.userData.base = b.position.clone());
+    const holder = new THREE.Group(), focus = new THREE.Group(); holder.rotation.z = -Math.PI / 2; holder.position.y = 0.62;
+    focus.add(R.root); holder.add(focus); this.turn.add(holder); this.holder = holder; this.focus = focus; this.flick = 0.15;
+    this.info = { engine: true, length: R.height };
+    this.setRocket(-1);
+    if (this.label) this.label.textContent = `H ${R.height} m`;
+  }
+  // pose the launcher at flight time T (seconds); T < 0 = on the pad
+  setRocket(T) {
+    const R = this.rocket, tm = R.timing, on = (e, v) => { e.plume.material.uniforms.uThr.value = v; e.plume.visible = v > 0.01; };
+    const after = t0 => Math.max(0, T - t0);
+    R.engines.boosters.forEach(e => on(e, T >= 0 && T < tm.boosterOff ? 1 : 0));
+    R.engines.core.forEach(e => on(e, T >= tm.coreOn && T < tm.coreSep ? 1 : 0));
+    R.engines.upper.forEach(e => on(e, T >= tm.coreSep + 2 && T < tm.centaur ? 1 : 0));
+    R.engines.centaur.forEach(e => on(e, T >= tm.centaur + 3 && T < Math.min(tm.payloadSep - 15, tm.centaur + 360) ? 1 : 0));
+    const sb = after(tm.boosterSep);                     // solids peel away outward and fall back
+    R.boosters.forEach(b => { const o = b.userData.base, d = Math.hypot(o.x, o.z) || 1, out = 0.012 * sb * sb + 0.25 * sb, tilt = Math.min(0.9, sb * 0.02);
+      b.position.set(o.x + o.x / d * out, -0.08 * sb * sb, o.z + o.z / d * out); b.rotation.set(o.z / d * tilt, 0, -o.x / d * tilt); b.visible = sb < 90; });
+    const sf = after(tm.fairing);                        // clamshell halves split sideways
+    R.fairing.forEach((f, i) => { const sg = i ? 1 : -1; f.position.set(0, -0.02 * sf * sf, sg * (0.1 * sf + 0.01 * sf * sf)); f.rotation.set(sg * Math.min(0.7, sf * 0.02), 0, 0); f.visible = sf < 70; });
+    const sc = after(tm.coreSep);                        // spent core drops away
+    R.core.position.y = -(0.05 * sc * sc + 0.4 * sc); R.core.visible = sc < 120;
+    const s2 = after(tm.centaur);                        // Titan stage 2 drops after Centaur takes over
+    R.upper.position.y = -(0.05 * s2 * s2 + 0.4 * s2); R.upper.visible = s2 < 120;
+    const sp = after(tm.payloadSep);                     // spacecraft separation
+    R.centaur.position.y = -(0.01 * sp * sp + 0.2 * sp); R.centaur.visible = sp < 200;
+    const k0 = Math.max(0, Math.min(1, (T - tm.coreSep) / 70)), k = k0 * k0 * (3 - 2 * k0);
+    const len = R.height + ((R.focusTop - R.focusBottom + 4) - R.height) * k, cy = R.height / 2 + ((R.focusTop + R.focusBottom) / 2 - R.height / 2) * k;
+    this.holder.scale.setScalar(2.2 / len); this.focus.position.y = -cy;
+  }
+  stepRocket(dt) {
+    const A = this.asc, R = this.rocket, tm = R.timing; A.tau += dt;
+    const K = [[0, 0], [5, tm.boosterSep - 15], [9, tm.boosterSep + 25], [13, tm.coreSep + 30], [18, tm.centaur + 60], [21, tm.payloadSep - 10], [25, tm.end]];
+    let T = tm.end; for (let i = 0; i < K.length - 1; i++) if (A.tau <= K[i + 1][0]) { const f = (A.tau - K[i][0]) / (K[i + 1][0] - K[i][0]); T = K[i][1] + f * (K[i + 1][1] - K[i][1]); break; }
+    this.setRocket(T);
+    const ev = [...R.seq].reverse().find(e => T >= e.t), mm = Math.floor(T / 60), ss = Math.floor(T % 60);
+    if (this.seqEl) this.seqEl.textContent = `T+${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')} ${ev ? ev.label : ''}`;
+    if (A.tau > 25.5) { this.asc = null; if (this.seqEl) this.seqEl.textContent = ''; A.onDone && A.onDone(); }
+  }
+  showStarshipMats() {
+    const c = this.opts.color || '#e9eef0', lm = o => new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false });
+    this.smats = { hull: holoMat(this.u, 1.25), shield: holoMat(this.u, 1.45), inner: holoMat(this.u, 0.28), engine: holoMat(this.u, 1.1), edge: lm(0.5), faint: lm(0.11), tile: lm(0.055) };
+    this.slines = [[this.smats.edge, 0.5], [this.smats.faint, 0.11], [this.smats.tile, 0.055]];
+  }
+  // scripted ascent: real seconds -> flight seconds, piecewise so staging plays in slow motion
+  startAscent(onDone, tankers = 0) { if (!this.rig && !this.rocket) return false; this.asc = { tau: 0, onDone, tankers }; this.visible = true; return true; }
+  ascActive() { return !!this.asc; }
+  stepAscent(dt) {
+    const A = this.asc; A.tau += dt;
+    const K = [[0, 0], [6, 159], [10, 168], [17, 240], [22, 520]], tau = A.tau;
+    let T = 520; for (let i = 0; i < K.length - 1; i++) if (tau <= K[i + 1][0]) { const f = (tau - K[i][0]) / (K[i + 1][0] - K[i][0]); T = K[i][1] + f * (K[i + 1][1] - K[i][1]); break; }
+    const sep = Math.max(0, T - 165), gap = sep > 0 ? Math.min(400, 0.025 * sep * sep + 0.55 * sep) : 0;
+    const flip = T < 170 ? 0 : Math.min(1, (T - 170) / 18);
+    const bThr = r => T < 159 ? 1 : T < 166 ? (r === 'centre' ? 1 : 0) : (T > 182 && T < 225 && r !== 'outer') ? 0.9 : 0;
+    const sThr = T >= 161 && T < 520 ? 1 : 0;
+    this.setStage({ frame: Math.max(0, Math.min(1, (T - 200) / 70)), booster: T < 330, gap, flip, bThr, sThr });
+    const ev = [...ASCENT].reverse().find(e => T >= e.t);
+    const mm = Math.floor(T / 60), ss = Math.floor(T % 60);
+    let txt = `T+${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')} ${ev ? ev.label : ''}`;
+    if (tau > 22) { const n = A.tankers, k = n ? Math.min(n, Math.floor((tau - 22) / 4 * n) + 1) : 0; txt = n ? `ORBIT · PROPELLANT TRANSFER ${k}/${n} TANKERS` : 'ORBIT · PROPELLANT LOADED'; }
+    if (this.seqEl) this.seqEl.textContent = txt;
+    if (tau > 26.5) { this.asc = null; if (this.seqEl) this.seqEl.textContent = ''; this.setStage({ frame: 1, booster: false }); A.onDone && A.onDone(); }
+  }
+  place(g, info, id) {
+    const box = new THREE.Box3().setFromObject(g), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
     const L = Math.max(size.x, size.y, size.z), s = 2.2 / L;
     // lay the vehicle on its side, nose to the right, sitting above the projector
     const holder = new THREE.Group(); g.position.sub(c); holder.add(g);
@@ -189,17 +323,27 @@ export class Holo {
     if (info.engine) { const pl = Math.min(info.engine.r * 4, L * 0.4); this.plume.scale.set(info.engine.r * 0.8, pl, info.engine.r * 0.8); this.plume.position.set(0, info.engine.y - pl / 2, 0); g.add(this.plume); }
     this.turn.add(holder);
     this.info = info; this.flick = 0.15;            // brief power-up flicker on change
-    if (this.label) this.label.textContent = info.lengthLabel || (info.length ? `LENGTH ${info.length} m` : 'NOT TO SCALE');
+    if (this.label) this.label.textContent = info.lengthLabel || (info.length ? `L ${info.length} m` : 'NOT TO SCALE');
+    this.onInfo && this.onInfo(info);
   }
   setThrust(x) { this.thrust = x; }
+  setEntry(x) { this.entry = x; }
   render(dt) {
     if (!this.visible || !this.id) return;
-    this.u.uTime.value += dt; this.turn.rotation.y = 0.45 + 0.55 * Math.sin(this.u.uTime.value * 0.3);   // sweep around a three-quarter view
+    this.u.uTime.value += dt; this.idle += dt;
+    if (this.idle > 6) this.sweep += dt;                                         // idle: sweep around a three-quarter view
+    this.turn.rotation.y = 0.45 + 0.55 * Math.sin(this.sweep * 0.3);
+    this.ctl.update();
     this.flick = Math.min(1, this.flick + dt * 1.8);
     const glitch = Math.random() < 0.012 ? 0.45 : 1;
     this.u.uFlick.value = this.flick * glitch * (0.93 + 0.07 * Math.sin(this.u.uTime.value * 13));
     this.edge.opacity = 0.45 * this.u.uFlick.value;
-    this.plume.material.uniforms.uThr.value += ((this.info?.engine ? this.thrust : 0) - this.plume.material.uniforms.uThr.value) * Math.min(1, dt * 4);
+    if (this.rocket) { for (const [m, o] of this.slines) m.opacity = o * this.u.uFlick.value; if (this.asc) this.stepRocket(dt); }
+    else if (this.rig) {
+      for (const [m, o] of this.slines) m.opacity = o * this.u.uFlick.value;
+      if (this.asc) this.stepAscent(dt);
+      else if (this.mode === 'ship') { this.thrS = (this.thrS || 0) + (this.thrust - (this.thrS || 0)) * Math.min(1, dt * 4); this.setStage({ frame: 1, booster: false, sThr: this.thrS, entry: this.entry || 0 }); }
+    } else this.plume.material.uniforms.uThr.value += ((this.info?.engine ? this.thrust : 0) - this.plume.material.uniforms.uThr.value) * Math.min(1, dt * 4);
     this.r.render(this.scene, this.cam);
   }
 }

@@ -12,53 +12,35 @@
   <div class="start-inner">
     <header class="brand"><b>STARSHIP MISSION VIEWER</b><span>FDO / RAD CONSOLE · PATCHED-CONIC · RELATIVISTIC ROCKET</span></header>
 
-    <section id="choose">
-      <h1><span class="pr">&gt;</span> SELECT MISSION<span class="cur"></span></h1>
-      <p class="lede">Each one is a working model: trajectories, propellant and crew radiation are computed, so you can change the inputs and see what breaks.</p>
-      <div class="cards">
-        <button class="card" data-preset="hailmary" data-hero="star">
-          <span class="kicker">01 · INTERSTELLAR · FROM THE NOVEL</span>
-          <h2>Project Hail Mary</h2>
-          <p>The novel’s ship: three crew in comas, 2,000 tonnes of Astrophage, 1.5 g all the way to Tau Ceti. The flight times hold up. The fuel doesn’t.</p>
-          <dl><div><dt>Distance</dt><dd>11.9 ly</dd></div><div><dt>Ship time</dt><dd>3.9 yr</dd></div><div><dt>Top speed</dt><dd>99.5% c</dd></div></dl>
-          <span class="go">FLY IT →</span>
-        </button>
-        <button class="card" data-preset="mars" data-hero="mars">
-          <span class="kicker">02 · PLANETARY · 2033 WINDOW</span>
-          <h2>Starship to Mars</h2>
-          <p>Refuel in Earth orbit, coast for six months, aerobrake into Mars. Thirteen launch windows and mission types to compare, from one-way to a surface stay.</p>
-          <dl><div><dt>Transit</dt><dd>174 d</dd></div><div><dt>Tankers</dt><dd>4</dd></div><div><dt>Crew dose</dt><dd>213 mSv</dd></div></dl>
-          <span class="go">FLY IT →</span>
-        </button>
-        <button class="card build" data-go="builder" data-hero="earth">
-          <span class="kicker">03 · SANDBOX</span>
-          <h2>Build your own</h2>
-          <p>Any planet or a nearby star, with Starship, nuclear thermal, fusion probes, a laser sail or antimatter. Every mass and speed is editable.</p>
-          <dl><div><dt>Destinations</dt><dd>18</dd></div><div><dt>Vehicles</dt><dd>13</dd></div></dl>
-          <span class="go">OPEN BUILDER →</span>
-        </button>
-      </div>
-    </section>
-
-    <section id="builder" hidden>
-      <div class="bhead"><button class="ghost" id="bback">← BACK</button><h1><span class="pr">&gt;</span> BUILD MISSION<span class="cur"></span></h1></div>
-      <div class="bgrid">
-        <div class="bcol">
-          <h3><span>01</span>Destination</h3>
-          <div class="grp">Planets</div><div id="dPlanets" class="chips"></div>
-          <div class="grp">Nearby stars</div><div id="dStars" class="chips"></div>
-          <p id="destBlurb" class="blurb"></p>
+    <section id="builder">
+      <div class="bhead"><h1><span class="pr">&gt;</span> BUILD MISSION<span class="cur"></span></h1></div>
+      <div class="blayout">
+        <div class="rail">
+          <div class="bcol" id="colDest">
+            <h3><span>01</span>Destination</h3>
+            <div class="grp">Planets</div><div id="dPlanets" class="chips"></div>
+            <div class="grp">Nearby stars</div><div id="dStars" class="chips"></div>
+            <div class="grp">Historical missions</div><div id="dHist" class="chips hist"></div>
+            <p id="destBlurb" class="blurb"></p>
+          </div>
+          <div class="bcol grow" id="colParams">
+            <h3><span>03</span>Parameters</h3>
+            <div id="params" class="params"></div>
+            <div id="estimate" class="estimate"></div>
+            <button id="launch" class="primary">LAUNCH MISSION →</button>
+          </div>
         </div>
-        <div class="bcol">
-          <h3><span>02</span>Vehicle</h3>
-          <div id="bholowrap" class="holowrap builder"><canvas id="bholo"></canvas><div class="holo-hud"><b id="bholoname">—</b><span id="bhololen"></span></div></div>
-          <div id="vehList" class="vlist"></div>
-        </div>
-        <div class="bcol">
-          <h3><span>03</span>Parameters</h3>
-          <div id="params" class="params"></div>
-          <div id="estimate" class="estimate"></div>
-          <button id="launch" class="primary">LAUNCH MISSION →</button>
+        <div class="bcenter"></div>
+        <div class="rail">
+          <div class="bcol grow" id="colVeh">
+            <h3><span>02</span>Vehicle</h3>
+            <div id="bholowrap" class="holowrap builder"><canvas id="bholo"></canvas><div class="holo-hud"><b id="bholoname">—</b><span id="bhololen"></span></div><div class="holo-credit"></div></div>
+            <div id="vehList" class="vlist"></div>
+          </div>
+          <div class="bcol" id="colPrev">
+            <h3><span>04</span>Mission preview</h3>
+            <div class="schemwrap"><canvas id="schem"></canvas></div>
+          </div>
         </div>
       </div>
     </section>
@@ -68,7 +50,7 @@
 <!-- ============================================================ dashboard -->
 <div id="app" hidden>
   <header id="bar">
-    <button id="home" class="ghost">← MISSIONS</button>
+    <button id="home" class="ghost">← BUILDER</button>
     <div class="title"><b id="mtitle">—</b><span id="msub"></span></div>
     <button id="edit" class="ghost">EDIT</button>
     <div class="spacer"></div>
@@ -132,7 +114,7 @@
       </section>
       <section class="panel" id="pCab" data-grow="4">
         <div class="ph"><div id="vseg" class="seg mini"><button data-v="holo" class="on">VEHICLE</button><button data-v="cabin">CREW CABIN</button></div><span class="hint" id="cutnote"></span><button class="max" title="Expand">⤢</button></div>
-        <div id="holowrap" class="holowrap"><canvas id="holo"></canvas><div class="holo-hud"><b id="holoname">—</b><span id="hololen"></span><span id="holothr" class="thr"></span></div></div>
+        <div id="holowrap" class="holowrap"><canvas id="holo"></canvas><div class="holo-hud"><b id="holoname">—</b><span id="hololen"></span><span id="holothr" class="thr"></span></div><div id="holoseq" class="holo-seq"></div><button id="ascbtn" class="ghost small holo-asc" hidden>▶ ASCENT</button><div class="holo-credit"></div></div>
         <div id="cutwrap" hidden><canvas id="cut"></canvas><div id="cutleg"></div></div>
       </section>
     </div>

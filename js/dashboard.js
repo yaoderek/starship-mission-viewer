@@ -4,6 +4,7 @@ import * as View from './scene.js';
 import { EVC } from './scene.js';
 import { Holo } from './holo.js';
 import { vehicleById } from './catalog.js';
+import { HISTORIC } from './historic.js';
 import { $, cap, esc, f1, int, sig, prob, dur, mass, energy, fmtDate, jdYear, yearJd } from './fmt.js';
 
 const MODES = { 'one-way': 'One-way', conjunction: 'Long stay', opposition: 'Short stay', isru: 'Surface + ISRU', 'round-trip': 'Round trip', rendezvous: 'Stops', flyby: 'Flyby' };
@@ -11,6 +12,7 @@ const C = { surf: '#9ccf7a', gcr: '#9a9a9a', spe: '#e0b050', belt: '#e0605a', to
 let data = null, mission = null, mIndex = 0, modeFilter = 'all', regSel = null, sheltered = true;
 let t = 0, playing = false, sortKey = 'rank', sortDir = 1, lastJd = -1;
 const isStar = () => data && data.kind === 'interstellar';
+const isHist = () => data && data.kind === 'historic';
 export const state = { get t() { return t; }, get mission() { return mission; }, get data() { return data; } };
 
 // ------------------------------------------------------------------ public API
@@ -22,12 +24,13 @@ export function load(d, mi = 0) {
 }
 export function select(i) {
   mIndex = i; mission = data.missions[i];
+  if (isHist() && data.target !== mission.target) { data.target = mission.target; View.setData(data); }
   View.setMission(mission);
   renderCmp(); renderEvents(); renderBudget(); renderReg(); renderRad(); renderHazards(); cabinFor(mission); holoFor(mission);
   drawTimeline(); setT(0); lastJd = -1;
 }
 export function setT(f) { t = Math.max(0, Math.min(1, f)); }
-export function togglePlay(force) { playing = force ?? !playing; if (t >= 1 && playing) t = 0; $('play').classList.toggle('on', playing); $('play').innerHTML = playing ? PAUSE : PLAY; }
+export function togglePlay(force) { playing = force ?? !playing; if (t >= 1 && playing) t = 0; if (playing && t < 1e-6 && hasLaunch()) runAscent(); $('play').classList.toggle('on', playing); $('play').innerHTML = playing ? PAUSE : PLAY; }
 export const span = () => [mission.traj[0][0], mission.traj[mission.traj.length - 1][0]];
 const PLAY = 'PLAY', PAUSE = 'PAUSE';
 
@@ -36,7 +39,7 @@ function rate() { const v = +$('speed').value; if (!isStar()) return v; const [a
 
 export function tick(dt) {
   if (!mission) return;
-  if (playing) { const [a, b] = span(); setT(t + dt * rate() / (b - a)); if (t >= 1) togglePlay(false); }
+  if (playing && !(holo && holo.ascActive())) { const [a, b] = span(); setT(t + dt * rate() / (b - a)); if (t >= 1) togglePlay(false); }
   const [t0, t1] = span(), jd = t0 + t * (t1 - t0);
   const q = isStar() ? starAt(jd) : null;
   View.update(jd, dt, q ? q.beta : 0);
@@ -45,7 +48,7 @@ export function tick(dt) {
   if (q) { $('shipclock').textContent = dur(q.tau); $('speedv').textContent = q.beta >= 0.001 ? `${(q.beta * 100).toFixed(q.beta > 0.99 ? 2 : 1)}% c` : q.beta < 1e-7 ? '0' : `${(q.beta * 299792.458).toFixed(1)} km/s`; }
   $('knob').style.left = (t * 100) + '%';
   if (Math.abs(jd - lastJd) > 1e-6) { drawChart(jd); updateRadNow(jd); lastJd = jd; }
-  if (view === 'cabin') updateCabin(jd, dt); else if (holo) { holo.setThrust(thrustAt(jd)); $('holothr').textContent = thrustAt(jd) > 0.05 ? 'ENGINE ● BURN' : 'ENGINE ○ COAST'; holo.render(dt); }
+  if (view === 'cabin') updateCabin(jd, dt); else if (holo) { holo.setThrust(thrustAt(jd)); holo.setEntry(isStar() ? 0 : entryAt(jd)); $('holothr').textContent = holo.ascActive() ? 'ASCENT' : entryAt(jd) > 0.05 ? 'ENTRY · HEAT SHIELD' : thrustAt(jd) > 0.05 ? 'ENGINE ● BURN' : 'ENGINE ○ COAST'; holo.render(dt); }
 }
 
 function starAt(jd) {
@@ -78,6 +81,13 @@ const SOLAR_COLS = [
   ['tk', 'Tankers', '', m => m.summary.tankers_needed ?? 99, m => m.summary.tankers_needed ?? '<span class="no">—</span>'],
   ['dose', 'Dose', 'mSv', m => dose(m).mean ?? 1e9, m => doseCell(dose(m).mean)],
   ['feas', 'Status', '', m => m.summary.feasible ? 0 : 1, go]];
+const HIST_COLS = [
+  ['name', 'Mission', '', m => m.rank, m => `${m.name}<div class="sub">${m.model}</div>`, 'l'],
+  ['launch', 'Launch', '', m => m.summary.launch, m => m.summary.launch],
+  ['arrive', 'Arrival', '', m => m.summary.arrive, m => m.summary.arrive],
+  ['dur', 'Cruise', '', m => m.summary.total_days, m => dur(m.summary.total_days)],
+  ['c3', 'C3', 'km²/s²', m => m.summary.c3, m => f1(m.summary.c3, 1)],
+  ['fb', 'Flybys', '', m => m.summary.flybys.length, m => m.summary.flybys.length ? m.summary.flybys.map(b => b[0].toUpperCase()).join('-') : '<span class="dim">direct</span>']];
 const STAR_COLS = [
   ['name', 'Vehicle', '', m => m.rank, m => `${m.name}${(m.tags || []).includes('yours') ? '<span class="tag acc">SELECTED</span>' : ''}<div class="sub">${m.model}</div>`, 'l'],
   ['crew', 'Crew', '', m => m.summary.crew, m => m.summary.crew || '<span class="dim">probe</span>'],
@@ -89,7 +99,7 @@ const STAR_COLS = [
   ['dose', 'Dose', 'mSv', m => m.summary.crew ? m.summary.dose_mean : 1e12, m => m.summary.crew ? doseCell(m.summary.dose_mean) : '<span class="dim">—</span>']];
 
 function renderCmp() {
-  const COLS = isStar() ? STAR_COLS : SOLAR_COLS;
+  const COLS = isStar() ? STAR_COLS : isHist() ? HIST_COLS : SOLAR_COLS;
   if (!COLS.find(c => c[0] === sortKey)) sortKey = COLS[0][0];
   const col = COLS.find(c => c[0] === sortKey);
   const ms = data.missions.map((m, i) => [m, i]).filter(([m]) => modeFilter === 'all' || (m.mode || 'one-way') === modeFilter);
@@ -98,11 +108,11 @@ function renderCmp() {
     ms.map(([m, i]) => `<tr data-i="${i}" class="${i === mIndex ? 'on' : ''}">${COLS.map(c => `<td class="${c[5] || ''}">${c[4](m)}</td>`).join('')}</tr>`).join('') + '</tbody>';
   $('cmp').querySelectorAll('th').forEach(th => th.onclick = () => { const k = th.dataset.k; sortDir = k === sortKey ? -sortDir : 1; sortKey = k; renderCmp(); });
   $('cmp').querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => select(+tr.dataset.i));
-  $('cmpTitle').textContent = isStar() ? `Vehicle comparison · ${data.star.name}` : 'Mission comparison';
+  $('cmpTitle').textContent = isStar() ? `Vehicle comparison · ${data.star.name}` : isHist() ? 'Historical missions' : 'Mission comparison';
   $('cmpHint').textContent = isStar() ? 'click row to fly that vehicle' : 'click header to sort · row to select';
 }
 function renderModes() {
-  if (isStar()) { $('modes').innerHTML = ''; $('modes').hidden = true; return; }
+  if (isStar() || isHist()) { $('modes').innerHTML = ''; $('modes').hidden = true; return; }
   $('modes').hidden = false;
   const have = [...new Set(data.missions.map(m => m.mode || 'one-way'))];
   if (have.length < 2) { $('modes').innerHTML = ''; $('modes').hidden = true; return; }
@@ -136,6 +146,7 @@ function renderBudget() {
   $('isruwrap').style.display = mission.isru ? '' : 'none';
   $('tankx').style.display = isStar() ? 'none' : '';
   if (isStar()) return renderStarBudget();
+  if (isHist()) return renderHistBudget();
   const S = mission.summary, P = data.vehicleParams, rt = mission.mode && mission.mode !== 'one-way';
   const no = x => `<span class="no">${x}</span>`, ok = x => `<span class="ok">${x}</span>`;
   $('budtitle').textContent = rt ? `Architecture · ${MODES[mission.mode]} · Δv / propellant` : 'Δv and propellant';
@@ -160,6 +171,15 @@ function renderBudget() {
   }
   $('budget').innerHTML = kv(rows) + why + `<div class="wide note">Vehicle: ${esc(data.vehicle)}.${rt && S.surface ? ` Return payload ${data.architecture ? data.architecture.return_payload_t : 20} t. Mars ascent 4.15 km/s (MSR MAV, NTRS 20130013542).` : ''}</div>`;
   if (mission.isru) drawIsru();
+}
+function renderHistBudget() {
+  const S = mission.summary, h = HISTORIC.find(x => x.id === mission.historicId);
+  $('budtitle').textContent = 'Mission facts · reconstructed trajectory';
+  $('tankx').style.display = 'none';
+  const rows = [...h.facts.map(([k, v]) => [k, v, '']), ['Launch', S.launch, ''], ['Arrival', S.arrive, ''], ['Cruise', dur(S.total_days), '', 'hl'],
+    ['Launch C3 (reconstructed)', f1(S.c3, 1), 'km²/s²', 'hl'], ['Arrival v∞', f1(S.vinf_arr, 2), 'km/s'], ...(S.entry_kms ? [['Entry speed (125 km)', f1(S.entry_kms, 2), 'km/s']] : []),
+    ['Gravity assists', S.flybys.length ? S.flybys.map(b => b[0].toUpperCase() + b.slice(1)).join(', ') : 'none', '']];
+  $('budget').innerHTML = kv(rows) + `<div class="wide note">${esc(h.blurb)} Trajectory rebuilt from the real launch and encounter dates with Lambert arcs between planets (JPL approximate ephemeris); where flyby v∞ in and out differ, the real spacecraft made deep-space manoeuvres.</div>`;
 }
 function renderStarBudget() {
   const S = mission.summary, p = mission.params, c = 299792458;
@@ -212,7 +232,7 @@ function bar(label, v, lim, limLabel) {
 function renderRad() {
   const R = mission.radiation;
   $('shelterwrap').style.display = isStar() ? 'none' : '';
-  if (!R) { $('limits').innerHTML = '<div class="empty">No radiation analysis for this case (it is a validation trajectory).</div>'; $('radnow').innerHTML = ''; $('radbreak').innerHTML = ''; return; }
+  if (!R) { $('limits').innerHTML = `<div class="empty">${isHist() ? 'Robotic mission: no crew aboard, so no crew dose.' : 'No radiation analysis for this case (it is a validation trajectory).'}</div>`; $('radnow').innerHTML = ''; $('radbreak').innerHTML = ''; return; }
   const T = R.totals, sh = sheltered, D = isStar() ? { mean: T.total_mean, p95: T.total_p95 } : dose(mission);
   const w30 = sh ? T.win30_p95_sh : T.win30_p95, w365 = sh ? T.win365_p95_sh : T.win365_p95;
   const crewNote = isStar() && !mission.summary.crew ? '<div class="empty">Uncrewed probe. Numbers show what a crew would receive in this hull.</div>' : '';
@@ -382,7 +402,8 @@ function initCabin() {
 // ------------------------------------------------------------------ holographic vehicle
 let holo = null, view = 'holo';
 export function bindVehicleView() {
-  holo = new Holo($('holo'), $('holowrap'));
+  holo = new Holo($('holo'), $('holowrap'), { label: $('hololen') }); holo.seqEl = $('holoseq');
+  $('ascbtn').onclick = () => runAscent();
   $('vseg').querySelectorAll('button').forEach(b => b.onclick = () => {
     view = b.dataset.v; $('vseg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
     $('holowrap').hidden = view !== 'holo'; $('cutwrap').hidden = view !== 'cabin'; holo.visible = view === 'holo';
@@ -392,8 +413,23 @@ export function bindVehicleView() {
 function holoFor(m) {
   if (!holo) return;
   const id = m.vehicleId || data.vehicleId || 'starship', v = vehicleById(isStar() ? 'star' : 'planet', id);
-  holo.show(id); $('holoname').textContent = v ? v.name : id;
-  $('hololen').textContent = holo.info.lengthLabel || (holo.info.length ? `L ${holo.info.length} m` : 'NOT TO SCALE');
+  holo.show(id, 'ship'); $('holoname').textContent = v ? (STARSHIP_IDS.has(id) ? v.name + ' V3' : v.name) : m.model || id;
+  $('ascbtn').hidden = !LAUNCH_IDS.has(id); $('ascbtn').textContent = STARSHIP_IDS.has(id) ? '▶ ASCENT' : '▶ LAUNCH';
+}
+const STARSHIP_IDS = new Set(['starship', 'starship-lite', 'starship-heavy']);
+const LAUNCH_IDS = new Set([...STARSHIP_IDS, 'titan3e', 'titan4b', 'atlas541']);
+const hasLaunch = () => !isStar() && holo && LAUNCH_IDS.has(mission.vehicleId || data.vehicleId);
+// Play the launch, hot staging and booster return in the hologram before the mission clock starts.
+function runAscent() {
+  if (!holo || !LAUNCH_IDS.has(holo.id)) return false;
+  if (view !== 'holo') $('vseg').querySelector('[data-v=holo]').click();
+  return holo.startAscent(null, mission.summary.tankers_needed || 0);
+}
+function entryAt(jd) {
+  let x = 0;
+  for (const e of mission.events) if ((e.type === 'arrival' && /aero|edl/.test(mission.summary.capture || '')) || e.type === 'return' || /entry|EDL|aerocapture/i.test(e.label))
+    if (Math.abs(e.jd - jd) < 2) x = Math.max(x, 1 - Math.abs(e.jd - jd) / 2);
+  return x;
 }
 function thrustAt(jd) {
   if (isStar()) { const ph = (mission.phases || []).find(p => jd >= p.jd0 && jd <= p.jd1); return ph && ph.name !== 'cruise' ? 1 : 0; }

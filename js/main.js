@@ -2,9 +2,10 @@
 import * as View from './scene.js';
 import * as Dash from './dashboard.js';
 import { initLayout } from './layout.js';
-import { initHero, renderHero, setHero, initBuilder, openBuilder, closeBuilder, loadPlanetFile, renderBuilderHolo, B } from './start.js';
+import { initHero, renderHero, initBuilder, openBuilder, loadPlanetFile, renderBuilderHolo } from './start.js';
 import { PRESETS, SOLAR_VEHICLES, STAR_VEHICLES, planetById, starById } from './catalog.js';
 import { buildInterstellar } from './interstellar.js';
+import { buildHistoric, historicById } from './historic.js';
 import { resizeAll } from './vehicle.js';
 import { $, esc } from './fmt.js';
 
@@ -42,8 +43,7 @@ async function route() {
 
 function showStart() {
   view = 'start'; $('app').hidden = true; $('start').hidden = false; Dash.togglePlay(false);
-  if (!$('builder').hidden) return;
-  closeBuilder(); setHero('mars');
+  openBuilder();
 }
 
 async function ensureScene() {
@@ -53,19 +53,23 @@ async function ensureScene() {
     initLayout(); Dash.bindTimeline(); Dash.bindRadControls(); Dash.bindVehicleView();
     document.querySelectorAll('#scale button').forEach(b => b.onclick = () => { const v = b.dataset.s === 'true'; View.setScale(v); document.querySelectorAll('#scale button').forEach(x => x.classList.toggle('on', x === b)); });
     $('rel').onchange = e => View.setRelativistic(e.target.checked);
-    $('home').onclick = () => { location.hash = ''; };
-    $('edit').onclick = () => { location.hash = ''; openBuilder(current); $('app').hidden = true; $('start').hidden = false; view = 'start'; };
+    $('home').onclick = () => { location.hash = ''; };   // back to the builder
+    $('edit').onclick = () => { openBuilder(current); location.hash = ''; };
   })();
   return sceneReady;
 }
 
 async function fly(cfg) {
-  loading(true, cfg.kind === 'star' ? 'PLOTTING COURSE' : 'LOADING EPHEMERIS');
+  loading(true, cfg.kind === 'star' ? 'PLOTTING COURSE' : cfg.kind === 'historic' ? 'RECONSTRUCTING TRAJECTORY' : 'LOADING EPHEMERIS');
   $('start').hidden = true; $('app').hidden = false; view = 'app';
   await ensureScene();
   const isPreset = !!cfg.preset;
   let data, title, sub;
-  if (cfg.kind === 'star') {
+  if (cfg.kind === 'historic') {
+    data = buildHistoric(); const h = historicById(cfg.dest), i = Math.max(0, data.missions.findIndex(m => m.historicId === cfg.dest));
+    data.target = data.missions[i].target; cfg = { ...cfg, mission: i };
+    title = h.name; sub = `${h.launcherName} · ${h.year} · reconstructed from real encounter dates`;
+  } else if (cfg.kind === 'star') {
     const s = starById(cfg.dest), v = STAR_VEHICLES.find(x => x.id === cfg.vehicle);
     data = buildInterstellar(s, v.id, cfg.params, cfg.year);
     title = isPreset ? cfg.title : `${v.name} to ${s.name}`;
@@ -85,15 +89,6 @@ async function fly(cfg) {
 
 // ------------------------------------------------------------------ start screen wiring
 function bindStart() {
-  document.querySelectorAll('.card').forEach(c => {
-    c.addEventListener('pointerenter', () => setHero(c.dataset.hero));
-    c.addEventListener('focus', () => setHero(c.dataset.hero));
-    c.onclick = () => {
-      if (c.dataset.preset) location.hash = cfgToHash({ preset: c.dataset.preset });
-      else openBuilder();
-    };
-  });
-  $('bback').onclick = () => { closeBuilder(); setHero('mars'); };
   initBuilder(cfg => { location.hash = cfgToHash(cfg); });
 }
 

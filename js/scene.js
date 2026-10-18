@@ -227,7 +227,8 @@ export function setMission(m) {
   trajFlown = mk(0xe6e6e6, 1.8); missionGroup.add(trajFlown); nSeg = m.traj.length - 1;
   shipGlow = sprite(glowTexture('#f2f2f2'), 0xe6e6e6, 0.05, true); shipGlow.material.blending = THREE.AdditiveBlending; missionGroup.add(shipGlow);
   ship = sprite(SQ, 0xffffff, 13); missionGroup.add(ship);
-  const shipName = mode === 'interstellar' ? m.name.replace(' (custom)', '').replace('Project ', '').toUpperCase() : 'STARSHIP';
+  const shipName = mode === 'interstellar' ? m.name.replace(' (custom)', '').replace('Project ', '').toUpperCase()
+    : data.kind === 'historic' ? m.name.replace('Mars 2020 ', '').toUpperCase() : data.vehicleId === 'ntr' ? 'NTR SHIP' : 'STARSHIP';
   const SL = makeLabel(`${shipName}<span class="sp"></span>`, 'ship', 100, () => ship.position); SL.force = true; SL.speedEl = SL.el.querySelector('.sp'); m._shipLabel = SL;
   for (const e of m.events) {
     const typ = e.hazard ? 'hazard' : e.type, s = sprite(SQ, EVC[typ], 10);

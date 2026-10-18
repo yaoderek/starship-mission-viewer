@@ -1,14 +1,19 @@
-// Start screen: animated hero backdrop, preset mission cards and the mission builder.
+// Start screen: the mission builder over an animated backdrop of the chosen destination.
 import * as THREE from 'three';
 import { loadSkyData, makeSky } from './sky.js';
-import { planetTexture, atmosphereMaterial, glowTexture, earthClouds } from './textures.js';
+import { planetTexture, atmosphereMaterial, glowTexture, earthClouds, ringTexture, remapRingUVs } from './textures.js';
+import { drawSchematic } from './schematic.js';
 import { PLANETS, STARS, SOLAR_VEHICLES, STAR_VEHICLES, planetById, starById } from './catalog.js';
 import { buildMission } from './interstellar.js';
+import { HISTORIC, historicById, buildHistoric } from './historic.js';
 import { Holo } from './holo.js';
 import { resizeAll } from './vehicle.js';
 import { $, esc, dur, mass, sig, int, f1 } from './fmt.js';
 
 // ------------------------------------------------------------------ hero backdrop
+// The selected destination fills the middle of the screen between the two builder rails.
+const ATMO = { venus: ['#f4dca0', 0.9], earth: ['#6fb0ff', 1.3], mars: ['#e8a27a', 0.7], jupiter: ['#e8d4b0', 0.55], saturn: ['#efe0b8', 0.55], uranus: ['#bff0f4', 0.8], neptune: ['#7aa0ff', 0.9] };
+const TILT = { mercury: 0.03, venus: 3.1, earth: 0.41, mars: 0.44, jupiter: 0.05, saturn: 0.47, uranus: 1.71, neptune: 0.49 };
 let hero = null;
 export async function initHero() {
   const canvas = $('hero');
@@ -17,39 +22,45 @@ export async function initHero() {
   const skyScene = new THREE.Scene(), skyCam = new THREE.PerspectiveCamera(55, 1, 0.1, 10);
   const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100); cam.position.set(0, 0, 9);
   const sky = makeSky(await loadSkyData(), { brightness: 1.15 }); skyScene.add(sky.group);
-  const sunPos = new THREE.Vector3(-26, 9, -3);
-  const light = new THREE.DirectionalLight(0xfff4e6, 2.6); light.position.copy(sunPos); sc.add(light); sc.add(new THREE.AmbientLight(0x1a2230, 0.25));
+  const sunPos = new THREE.Vector3(-26, 9, 2);
+  const light = new THREE.DirectionalLight(0xfff4e6, 2.6); light.position.copy(sunPos); sc.add(light); sc.add(new THREE.AmbientLight(0x1a1a1a, 0.3));
   const pivot = new THREE.Group(); sc.add(pivot);
-  const mk = name => {
-    const g = new THREE.Group();
-    g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 128, 64), new THREE.MeshStandardMaterial({ map: planetTexture(name), roughness: 1 })));
-    if (name === 'earth') g.add(new THREE.Mesh(new THREE.SphereGeometry(1.01, 128, 64), new THREE.MeshStandardMaterial({ map: earthClouds(), transparent: true, depthWrite: false })));
-    const am = atmosphereMaterial(name === 'earth' ? '#6fb0ff' : '#e8a27a', name === 'earth' ? 1.3 : 0.7); am.uniforms.sunPos && am.uniforms.sunPos.value.copy(sunPos);
-    g.add(new THREE.Mesh(new THREE.SphereGeometry(1.05, 96, 48), am));
-    g.rotation.z = 0.35; g.visible = false; pivot.add(g); return g;
-  };
-  const planets = { mars: mk('mars'), earth: mk('earth') };
-  const star = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('#fff2d8'), color: 0xffe2b0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-  star.scale.setScalar(1.6); sc.add(star); star.visible = false;
-  hero = { r, skyScene, skyCam, sc, cam, sky, planets, star, mode: 'mars', fade: 1, target: 'mars', beta: 0, t: 0, yaw: 0.6 };
-  const resize = () => { const w = innerWidth, h = innerHeight; r.setSize(w, h, false); cam.aspect = skyCam.aspect = w / h; cam.updateProjectionMatrix(); skyCam.updateProjectionMatrix(); place(); };
+  const star = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('#ffffff'), color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  sc.add(star); star.visible = false;
+  hero = { r, skyScene, skyCam, sc, cam, sky, pivot, sunPos, planets: {}, star, mode: null, fade: 0, target: 'mars', beta: 0, t: 0, yaw: 0.6 };
+  const resize = () => { const w = innerWidth, h = innerHeight; r.setSize(w, h, false); cam.aspect = skyCam.aspect = w / h; cam.updateProjectionMatrix(); skyCam.updateProjectionMatrix(); };
   addEventListener('resize', resize); resize();
   setHero('mars');
 }
-function place() {   // planet sits to the right on wide screens, behind the cards on narrow ones
-  if (!hero) return; const wide = innerWidth > 1000;
-  for (const g of Object.values(hero.planets)) { g.position.set(wide ? 2.6 : 0, wide ? -0.3 : -1.8, 0); g.scale.setScalar(wide ? 2.1 : 1.6); }
-  hero.star.position.set(wide ? 2.4 : 0, 0.2, 0);
+function heroPlanet(name) {
+  const H = hero; if (H.planets[name]) return H.planets[name];
+  const g = new THREE.Group(), tilt = new THREE.Group(); tilt.rotation.z = TILT[name] || 0; g.add(tilt);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1, 128, 64), new THREE.MeshStandardMaterial({ map: planetTexture(name), roughness: 1 })); tilt.add(body);
+  if (name === 'earth') { const cl = new THREE.Mesh(new THREE.SphereGeometry(1.01, 128, 64), new THREE.MeshStandardMaterial({ map: earthClouds(), transparent: true, depthWrite: false })); cl.userData.spin = 0.065; tilt.add(cl); }
+  if (ATMO[name]) { const am = atmosphereMaterial(...ATMO[name]); am.uniforms.sunPos && am.uniforms.sunPos.value.copy(H.sunPos); tilt.add(new THREE.Mesh(new THREE.SphereGeometry(1.05, 96, 48), am)); }
+  if (name === 'saturn') {
+    const rg = new THREE.RingGeometry(1.24, 2.27, 160, 1); remapRingUVs(rg, 1.24, 2.27);
+    const ring = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ map: ringTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 1 }));
+    ring.rotation.x = Math.PI / 2 - 0.25; tilt.add(ring);
+  }
+  g.userData.body = body; g.visible = false; H.pivot.add(g); H.planets[name] = g; return g;
 }
-export function setHero(mode) { if (hero && mode !== hero.target) { hero.target = mode; } }
+// mode: a planet id, or a star object { col }
+export function setHero(mode) { if (hero) hero.target = mode; }
 export function renderHero(dt) {
   if (!hero) return; const H = hero; H.t += dt;
-  // cross-fade between hero subjects
-  if (H.mode !== H.target) { H.fade -= dt * 3; if (H.fade <= 0) { H.mode = H.target; H.fade = 0; } } else H.fade = Math.min(1, H.fade + dt * 2);
-  for (const [k, g] of Object.entries(H.planets)) { g.visible = H.mode === k; g.children[0].rotation.y = H.t * 0.05; if (g.children[1] && k === 'earth') g.children[1].rotation.y = H.t * 0.065; g.scale.setScalar((innerWidth > 1000 ? 2.1 : 1.6) * (0.92 + 0.08 * H.fade)); }
-  H.star.visible = H.mode === 'star'; H.star.material.opacity = H.fade; H.star.scale.setScalar(1.3 + 0.08 * Math.sin(H.t * 2));
-  // the Hail Mary card warps the sky as if you were aboard at 90% of light speed
-  const tb = H.mode === 'star' ? 0.92 : 0; H.beta += (tb - H.beta) * Math.min(1, dt * 1.5);
+  const key = m => typeof m === 'string' ? m : 'star:' + (m && m.id);
+  if (key(H.mode) !== key(H.target)) { H.fade -= dt * 3; if (H.fade <= 0) { H.mode = H.target; H.fade = 0; } } else H.fade = Math.min(1, H.fade + dt * 2);
+  const wide = innerWidth > 1000, isStar = H.mode && typeof H.mode !== 'string';
+  for (const [k, g] of Object.entries(H.planets)) g.visible = false;
+  if (H.mode && !isStar) {
+    const g = heroPlanet(H.mode), s = (wide ? (H.mode === 'saturn' ? 1.05 : 1.55) : 1.3) * (0.9 + 0.1 * H.fade);
+    g.visible = true; g.position.set(wide ? 0.25 : 0, wide ? -0.05 : -1.6, 0); g.scale.setScalar(s); g.userData.body.rotation.y = H.t * 0.05;
+    g.traverse(o => { if (o.userData.spin) o.rotation.y = H.t * o.userData.spin; });
+  }
+  H.star.visible = !!isStar; if (isStar) { H.star.material.color.set(H.mode.col || '#ffffff'); H.star.material.opacity = H.fade; H.star.position.set(wide ? 0.25 : 0, 0, 0); H.star.scale.setScalar((1.6 + 0.6 * Math.min(1, Math.pow(H.mode.lum || 1, 0.15))) * (1 + 0.04 * Math.sin(H.t * 2))); }
+  // interstellar destinations warp the sky as if seen from a ship at 90% of light speed
+  const tb = isStar ? 0.9 : 0; H.beta += (tb - H.beta) * Math.min(1, dt * 1.5);
   H.yaw += dt * 0.008;
   H.skyCam.position.set(0, 0, 0); H.skyCam.lookAt(Math.cos(H.yaw), Math.sin(H.yaw), 0.15);
   const fwd = new THREE.Vector3(); H.skyCam.getWorldDirection(fwd);
@@ -74,41 +85,60 @@ export async function loadPlanetFile(id) {
 }
 
 let bholo = null;
-export function renderBuilderHolo(dt) { if (bholo && !$('builder').hidden) bholo.render(dt); }
+let preview = null, ptime = 0;
+export function renderBuilderHolo(dt) { if (!bholo) return; bholo.render(dt); ptime += dt; drawSchematic($('schem'), preview, ptime); }
 export function initBuilder(launch) {
   onLaunch = launch;
-  bholo = new Holo($('bholo'), $('bholowrap'));
+  bholo = new Holo($('bholo'), $('bholowrap'), { label: $('bhololen') });
   $('dPlanets').innerHTML = PLANETS.map(p => `<button data-k="planet" data-id="${p.id}"><i style="color:${pdot(p.id)}">■</i>${p.name}</button>`).join('');
+  $('dHist').innerHTML = HISTORIC.map(h => `<button data-k="historic" data-id="${h.id}"><i style="color:#f2f2f2">■</i>${h.name.replace('Mars 2020 ', '')}<em>${h.year}</em></button>`).join('');
   $('dStars').innerHTML = STARS.map(s => `<button data-k="star" data-id="${s.id}"><i style="color:${s.col}">■</i>${s.short}<em>${s.ly.toFixed(1)} ly</em></button>`).join('');
   bindDest();
 }
 const pdot = id => ({ mercury: '#9a958e', venus: '#d8c49a', mars: '#c8714f', jupiter: '#d3b48c', saturn: '#d8c595', uranus: '#9fd3d8', neptune: '#5b78d8' }[id]);
 function bindDest() {
-  document.querySelectorAll('#dPlanets button,#dStars button').forEach(b => b.onclick = () => {
-    const kind = b.dataset.k; if (kind !== B.kind) { B.vehicle = kind === 'star' ? 'hailmary' : 'starship'; B.params = {}; }
-    B.kind = kind; B.dest = b.dataset.id; renderBuilder();
+  document.querySelectorAll('#dPlanets button,#dStars button,#dHist button').forEach(b => b.onclick = () => {
+    const kind = b.dataset.k; if (kind !== B.kind) { B.vehicle = kind === 'star' ? 'hailmary' : kind === 'historic' ? historicById(b.dataset.id).launcher : 'starship'; B.params = {}; }
+    if (kind === 'historic') B.vehicle = historicById(b.dataset.id).launcher;
+    B.kind = kind; B.dest = b.dataset.id; B.mission = 0; renderBuilder();
   });
   $('launch').onclick = () => onLaunch({ ...B, params: { ...B.params } });
 }
 
 export function openBuilder(cfg) {
   if (cfg) Object.assign(B, { ...cfg, params: { ...(cfg.params || {}) } });
-  $('choose').hidden = true; $('builder').hidden = false; setHero(B.kind === 'star' ? 'star' : B.dest === 'mars' ? 'mars' : 'earth');
+  delete B.preset; delete B.title;
   renderBuilder();
 }
-export function closeBuilder() { $('choose').hidden = false; $('builder').hidden = true; }
+const heroTarget = () => B.kind === 'star' ? starById(B.dest) : B.kind === 'historic' ? historicById(B.dest).hero : B.dest;
 
 function vehicles() { return B.kind === 'star' ? STAR_VEHICLES : SOLAR_VEHICLES; }
 function veh() { return vehicles().find(v => v.id === B.vehicle) || vehicles()[0]; }
 function renderBuilder() {
-  document.querySelectorAll('#dPlanets button,#dStars button').forEach(b => b.classList.toggle('on', b.dataset.id === B.dest));
+  document.querySelectorAll('#dPlanets button,#dStars button,#dHist button').forEach(b => b.classList.toggle('on', b.dataset.id === B.dest));
+  if (B.kind === 'historic') return renderHistoric();
   const d = B.kind === 'star' ? starById(B.dest) : planetById(B.dest);
   $('destBlurb').innerHTML = `<b>${esc(d.name)}</b>${B.kind === 'star' ? ` · ${d.ly.toFixed(2)} ly · ${d.sp}` : ''}<br>${esc(d.blurb)}`;
-  setHero(B.kind === 'star' ? 'star' : B.dest === 'mars' ? 'mars' : 'earth');
+  setHero(heroTarget());
   $('vehList').innerHTML = vehicles().map(v => `<button class="veh ${v.id === veh().id ? 'on' : ''}" data-id="${v.id}"><span class="vt"><b>${esc(v.name)}</b><em>${esc(v.tag)}</em>${v.crewed ? '<span class="tag ok">CREWED</span>' : ''}</span><span class="vb">${esc(v.blurb)}</span></button>`).join('');
   $('vehList').querySelectorAll('.veh').forEach(b => b.onclick = () => { B.vehicle = b.dataset.id; B.params = {}; renderBuilder(); });
-  bholo.show(veh().id); $('bholoname').textContent = veh().name; $('bhololen').textContent = bholo.info.lengthLabel || (bholo.info.length ? `L ${bholo.info.length} m` : 'NOT TO SCALE');
+  bholo.show(veh().id, 'stack'); $('bholoname').textContent = veh().name;
+  $('launch').textContent = 'LAUNCH MISSION →';
   renderParams(); estimate();
+}
+// Historical missions are replays: the vehicle and numbers are fixed, so show facts instead of inputs.
+function renderHistoric() {
+  const h = historicById(B.dest), data = buildHistoric(), mi = data.missions.findIndex(m => m.historicId === h.id), m = data.missions[mi], S = m.summary;
+  B.vehicle = h.launcher; B.mission = mi; B.params = {};
+  $('destBlurb').innerHTML = `<b>${esc(h.name)}</b> · ${h.year}<br>${esc(h.blurb)}`;
+  setHero(heroTarget());
+  $('vehList').innerHTML = `<div class="veh on"><span class="vt"><b>${esc(h.launcherName)}</b><em>Launch vehicle</em></span><span class="vb">${h.facts.map(([k, v]) => `${esc(k)}: ${esc(v)}`).join('<br>')}</span></div>`;
+  bholo.show(h.launcher); $('bholoname').textContent = h.launcherName;
+  $('params').innerHTML = `<div class="facts">${m.events.map(e => `<div><span>${e.date}</span><b>${esc(e.label)}</b></div>`).join('')}</div>`;
+  $('estimate').innerHTML = `<div class="est-grid"><div><span>Cruise</span><b>${dur(S.total_days)}</b></div><div><span>Launch C3</span><b>${f1(S.c3, 1)} km²/s²</b></div>
+    <div><span>Arrival v∞</span><b>${f1(S.vinf_arr, 2)} km/s</b></div><div><span>Gravity assists</span><b>${S.flybys.length || 'none'}</b></div></div>`;
+  $('launch').disabled = false; $('launch').textContent = 'REPLAY MISSION →';
+  preview = { kind: 'planet', data, mission: m, dest: m.target };
 }
 function renderParams() {
   const v = veh(), p = { ...v.p, ...B.params }, defs = B.kind === 'star' ? PARAM_DEFS[p.kind] : PARAM_DEFS.solar;
@@ -136,7 +166,7 @@ async function estimate() {
   if (B.kind === 'star') {
     const s = starById(B.dest);
     if ((p.kind === 'rocket' && (!(p.dry > 0) || !(p.prop > 0) || !(p.ve > 0))) || !(p.accel > 0 || p.kind === 'ballistic') || (p.kind === 'ballistic' && !(p.vkms > 0))) { el.innerHTML = '<div class="bad">Every mass, speed and acceleration needs to be above zero.</div>'; $('launch').disabled = true; return; }
-    const m = buildMission(s, v, B.params, B.year), S = m.summary;
+    const m = buildMission(s, v, B.params, B.year), S = m.summary; preview = { kind: 'star', star: s, mission: m };
     $('launch').disabled = !isFinite(S.earth_days);
     const short = p.kind === 'rocket' && S.prop_used_t > p.prop * 1.0001;
     el.innerHTML = `<div class="est-grid">
@@ -147,12 +177,13 @@ async function estimate() {
     ${S.crew && S.ship_days > 365 * 60 ? '<div class="bad">Longer than a human lifetime aboard.</div>' : ''}`;
     return;
   }
-  el.innerHTML = '<div class="dim">Loading trajectories…</div>'; $('launch').disabled = true;
+  el.innerHTML = '<div class="dim">Loading trajectories…</div>'; $('launch').disabled = true; preview = null;
   const data = await loadPlanetFile(B.dest); if (seq !== estSeq) return;
   resizeAll(data, p);
   const ok = data.missions.filter(m => m.summary.feasible);
   const best = ok.slice().sort((a, b) => (a.summary.tankers_needed ?? 99) - (b.summary.tankers_needed ?? 99) || a.summary.total_days - b.summary.total_days)[0];
   $('launch').disabled = false;
+  const shown = best || data.missions[0]; B.mission = data.missions.indexOf(shown); preview = { kind: 'planet', data, mission: shown, dest: B.dest };
   el.innerHTML = `<div class="est-grid"><div><span>Options that work</span><b class="${ok.length ? 'ok' : 'no'}">${ok.length} of ${data.missions.length}</b></div>
     ${best ? `<div><span>Fewest tankers</span><b>${best.summary.tankers_needed}</b></div><div><span>That route</span><b>${esc(best.name)}</b></div><div><span>Launch / duration</span><b>${best.summary.launch}, ${int(best.summary.total_days ?? best.summary.tof_years * 365.25)} d</b></div>` : ''}
     </div>${ok.length ? '' : `<div class="bad">Nothing closes with this vehicle: ${esc((data.missions[0].summary.why || [])[0] || '')}. You can still open the dashboard to see why.</div>`}`;
