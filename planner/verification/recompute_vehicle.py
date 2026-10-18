@@ -6,7 +6,7 @@ changes = []
 for vj in sorted(glob.glob("viewer/missions/*.json")):
     if vj.endswith("index.json") or "galileo" in vj: continue
     d = json.load(open(vj)); v = d["vehicle"]
-    m = re.search(r"dry ([\d.]+) t, payload ([\d.]+) t, prop cap ([\d.]+) t, Isp ([\d.]+) s, (\d+) tankers x ([\d.]+) t", v)
+    m = re.search(r"dry ([\d.]+) t, payload ([\d.]+) t, prop cap ([\d.]+) t, Isp ([\d.]+) s, (\d+) (?:tankers|refuel missions?) x ([\d.]+) t", v)
     dry, pay, cap, isp, n, load = map(float, m.groups())
     ship = Starship(dry_mass_t=dry, payload_t=pay, prop_capacity_t=1600.0, isp_s=isp, refuels=int(n), tanker_load_t=load)
     tgt = d["target"]; rk = f"output/{tgt}/ranked.json"; rows = json.load(open(rk)) if os.path.exists(rk) else []

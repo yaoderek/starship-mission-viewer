@@ -71,7 +71,7 @@ export function renderHero(dt) {
 
 // ------------------------------------------------------------------ builder
 const PARAM_DEFS = {
-  solar: [['dry', 'Dry mass', 't', 1], ['payload', 'Payload', 't', 1], ['cap', 'Tank capacity', 't', 10], ['isp', 'Engine Isp', 's', 1], ['tanker', 'Propellant per tanker', 't', 5], ['maxTankers', 'Tanker flights allowed', '', 1], ['wall', 'Extra cabin shielding (water)', 'g/cm²', 5], ['shelter', 'Storm shelter (water)', 'g/cm²', 5]],
+  solar: [['dry', 'Dry mass', 't', 1], ['payload', 'Payload', 't', 1], ['cap', 'Tank capacity', 't', 10], ['isp', 'Engine Isp', 's', 1], ['tanker', 'Propellant per refuel mission', 't', 5], ['maxTankers', 'Refuel missions allowed', '', 1], ['wall', 'Extra cabin shielding (water)', 'g/cm²', 5], ['shelter', 'Storm shelter (water)', 'g/cm²', 5]],
   rocket: [['dry', 'Dry mass', 't', 1], ['prop', 'Propellant', 't', 1], ['ve', 'Exhaust speed', '% of c', 0.1, 100], ['accel', 'Acceleration', 'g', 0.01], ['crew', 'Crew', '', 1], ['shield', 'Crew shielding', 'g/cm²', 1]],
   beam: [['beta', 'Target speed', '% of c', 1, 100], ['accel', 'Acceleration', 'g', 100]],
   ramjet: [['accel', 'Acceleration', 'g', 0.1], ['crew', 'Crew', '', 1], ['shield', 'Crew shielding', 'g/cm²', 1]],
@@ -186,7 +186,7 @@ async function estimate() {
   $('launch').disabled = false;
   const shown = best || data.missions[0]; B.mission = data.missions.indexOf(shown); preview = { kind: 'planet', data, mission: shown, dest: B.dest };
   el.innerHTML = `<div class="est-grid"><div><span>Options that work</span><b class="${ok.length ? 'ok' : 'no'}">${ok.length} of ${data.missions.length}</b></div>
-    ${best ? `<div><span>Fewest tankers</span><b>${best.summary.tankers_needed}</b></div><div><span>That route</span><b>${esc(best.name)}</b></div><div><span>Launch / duration</span><b>${best.summary.launch}, ${int(best.summary.total_days ?? best.summary.tof_years * 365.25)} d</b></div>` : ''}
+    ${best ? `<div><span>Fewest refuel missions</span><b>${best.summary.tankers_needed}</b></div><div><span>That route</span><b>${esc(best.name)}</b></div><div><span>Launch / duration</span><b>${best.summary.launch}, ${int(best.summary.total_days ?? best.summary.tof_years * 365.25)} d</b></div>` : ''}
     </div>${ok.length ? '' : `<div class="bad">Nothing closes with this vehicle: ${esc((data.missions[0].summary.why || [])[0] || '')}. You can still open the dashboard to see why.</div>`}${radEstimate(data, shown, ok, p)}`;
 }
 // Interstellar crew radiation before launch (probes: what a crew would get in that hull).

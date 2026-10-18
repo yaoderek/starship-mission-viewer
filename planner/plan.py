@@ -142,8 +142,9 @@ def main(argv=None):
     print("dvMid = deep-space manoeuvres (mga-1dsm) or powered-flyby burns (mga-Nrev); tank = min tanker flights needed (n/a = exceeds full tanks); ok = feasible with --refuels")
     json.dump(rows, open(os.path.join(out, "ranked.json"), "w"), indent=1)
     os.makedirs(a.viewer_dir, exist_ok=True)
+    nref = int(ship.refuels)
     vdesc = (f"dry {ship.dry_mass_t} t, payload {ship.payload_t} t, prop cap {ship.prop_capacity_t} t, "
-             f"Isp {ship.isp_s} s, {ship.refuels} tankers x {ship.tanker_load_t} t")
+             f"Isp {ship.isp_s} s, {nref} refuel mission{'' if nref == 1 else 's'} x {ship.tanker_load_t} t")
     vj = os.path.join(a.viewer_dir, f"{target}.json")
     export.write(vj, target, ranked[:a.top], rows, vdesc); print(f"viewer JSON -> {vj}")
     for i, r in enumerate(ranked[:3]):
