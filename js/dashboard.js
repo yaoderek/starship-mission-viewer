@@ -1,8 +1,8 @@
 // Dashboard panels. Works on both planetary mission files and generated interstellar missions.
-import * as THREE from 'three';
 import * as View from './scene.js';
 import { EVC } from './scene.js';
 import { Holo } from './holo.js';
+import { createCabin, doseScaleHTML } from './cabin.js';
 import { vehicleById } from './catalog.js';
 import { HISTORIC } from './historic.js';
 import * as Rad from './radiation.js';
@@ -268,6 +268,7 @@ function applyShield() {
   if (data.vehicleParams && !isStar() && !isHist()) resizeAll(data, { ...data.vehicleParams, ...shield });
   doseCache.clear(); analyseMission(true); onShield && onShield({ ...shield });
   renderCmp(); renderBudget(); renderRad(); renderHazards(); drawTimeline(); lastJd = -1;
+  if (cab && mission) cabinFor(mission);
 }
 export function bindRadControls() {
   $('regseg').querySelectorAll('button').forEach(b => b.onclick = () => { regSel = +b.dataset.r; renderReg(); doseCache.clear(); analyseMission(true); renderCmp(); renderRad(); renderHazards(); lastJd = -1; });
@@ -457,11 +458,25 @@ function updateRadNowStar(jd) {
   const items = [['Dose so far', lerpAt(R.tot_mean, k, f).toFixed(1), 'mSv'], ['Dose rate', lerpAt(R.gcr_rate, k, f).toFixed(2), 'mSv/day'], ['From Sun', q.x < 0.01 ? (q.x * 63241).toFixed(0) + ' AU' : q.x.toFixed(2) + ' ly', '']];
   $('radnow').innerHTML = items.map(([k, v, u]) => `<div><span>${k}</span><b>${v} <em>${u}</em></b></div>`).join('');
 }
-// dose rate the crew feels right now (cabin cutaway colouring)
-function rateNow(jd) {
-  if (!A) { const R = mission && mission.radiation; if (!R) return null; const [k, f] = gridAt(R.jd, jd); return lerpAt(R.gcr_rate, k, f); }
-  const J = A.P.J, [k] = gridAt(J, jd), dt = (J[k + 1] - J[k]) || 1, st = run.storms.filter(s => s.jd <= jd && jd - s.jd < 2), belt = A.belts.find(b => Math.abs(b.jd - jd) < 1.5);
-  return (A.gcrC[k + 1] - A.gcrC[k]) / dt + st.reduce((s, x) => s + x.dose / 2, 0) + (belt ? belt.dose : 0);
+// Dose rates for the cutaway. `cabin` is the hull / outer-deck rate, `shelter` the
+// water-shelter rate. Storms and belts carry both (radiation.js rollout); GCR barely moves.
+function ratesNow(jd) {
+  if (!A) {
+    const R = mission && mission.radiation; if (!R) return null;
+    const [k, f] = gridAt(R.jd, jd), crew = lerpAt(R.gcr_rate, k, f), p = mission.params || {};
+    // Astrophage already zeroed the gas in `crew`. The skin ahead of that wrap still
+    // sees the deep-space cosmic-ray rate the model uses when the fuel is not in the way.
+    return { cabin: p.absorbs ? Math.max(crew, 1.84) : crew, shelter: crew, shelterOn: !!p.absorbs };
+  }
+  const J = A.P.J, [k] = gridAt(J, jd), dt = (J[k + 1] - J[k]) || 1;
+  const gcr = (A.gcrC[k + 1] - A.gcrC[k]) / dt;
+  const st = run.storms.filter(s => s.jd <= jd && jd - s.jd < 2);
+  const speCab = st.reduce((s, x) => s + (x.cabin ?? x.dose) / 2, 0);
+  const speSh = st.reduce((s, x) => s + x.dose / 2, 0);
+  const belt = A.belts.find(b => Math.abs(b.jd - jd) < 1.5);
+  const beltCab = belt ? (belt.cab ?? belt.dose) : 0, beltSh = belt ? belt.dose : 0, on = shield.shelter > 0;
+  const gcrSh = on ? gcr * Math.min(1, Rad.gcrFactor(shield.wall + shield.shelter) / Math.max(1e-3, Rad.gcrFactor(shield.wall))) : gcr;
+  return { cabin: gcr + speCab + beltCab, shelter: gcrSh + (on ? speSh : speCab) + (on ? beltSh : beltCab), shelterOn: on };
 }
 // Storms the playhead just crossed: flash the Sun in the 3D view.
 function stormCheck(jd, prev) {
@@ -586,42 +601,9 @@ export function bindTimeline() {
   new ResizeObserver(() => { if (mission && mission.isru) drawIsru(); }).observe($('isruchart'));
 }
 
-// ------------------------------------------------------------------ crew cabin cutaway
+// ------------------------------------------------------------------ crew cabin cutaway (js/cabin.js)
 let cab = null;
-function initCabin() {
-  const host = $('cutwrap'), cv = $('cut');
-  const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true, alpha: true });
-  r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setClearColor(0x000000, 0);
-  const S = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 400); cam.up.set(0, 0, 1);
-  S.add(new THREE.AmbientLight(0xffffff, .55)); const dl = new THREE.DirectionalLight(0xffffff, 1.1); dl.position.set(6, -9, 12); S.add(dl);
-  const RH = 4.5, HG = 7.0, ARC = Math.PI * 1.25, A0 = Math.PI * 0.375;
-  const heatCols = ['#1a1a1a', '#5a5a5a', '#d0a040', '#e0605a'].map(c => new THREE.Color(c));
-  const heat = x => { x = Math.max(0, Math.min(1, x || 0)); const s = x * 3, k = Math.min(2, Math.floor(s)); return heatCols[k].clone().lerp(heatCols[k + 1], s - k); };
-  const hullGeo = new THREE.CylinderGeometry(RH, RH, HG, 64, 10, true, A0, ARC); hullGeo.rotateX(Math.PI / 2);
-  hullGeo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(hullGeo.attributes.position.count * 3), 3));
-  const hull = new THREE.Mesh(hullGeo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: .82 })); S.add(hull);
-  S.add(new THREE.LineSegments(new THREE.EdgesGeometry(hullGeo, 30), new THREE.LineBasicMaterial({ color: 0x8a8a8a })));
-  const deck = new THREE.Mesh(new THREE.CircleGeometry(RH, 64, A0, ARC), new THREE.MeshLambertMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide })); deck.position.z = -HG / 2; S.add(deck);
-  const deck2 = deck.clone(); deck2.position.z = 0.6; deck2.material = deck.material.clone(); deck2.material.transparent = true; deck2.material.opacity = .35; S.add(deck2);
-  const shG = new THREE.CylinderGeometry(1.6, 1.6, 2.4, 40, 1, true, A0, ARC); shG.rotateX(Math.PI / 2);
-  const shMat = new THREE.MeshLambertMaterial({ color: 0x5a5a5a, transparent: true, opacity: .55, side: THREE.DoubleSide }), shelter = new THREE.Mesh(shG, shMat); shelter.position.z = -HG / 2 + 1.2; S.add(shelter);
-  const shEdge = new THREE.LineSegments(new THREE.EdgesGeometry(shG, 30), new THREE.LineBasicMaterial({ color: 0xd0d0d0 })); shEdge.position.copy(shelter.position); S.add(shEdge);
-  const crew = new THREE.Group(); S.add(crew);
-  const crewGeo = {
-    leg: new THREE.CapsuleGeometry(0.06, 0.42, 2, 6), torso: new THREE.BoxGeometry(0.36, 0.48, 0.2),
-    head: new THREE.SphereGeometry(0.15, 12, 8), visor: new THREE.BoxGeometry(0.16, 0.06, 0.04), arm: new THREE.CapsuleGeometry(0.045, 0.36, 2, 6),
-  };
-  const suitMat = new THREE.MeshLambertMaterial({ color: 0xd8dee4 }), visorMat = new THREE.MeshLambertMaterial({ color: 0x141414 });
-  cab = { r, S, cam, host, hull, hullGeo, heat, shelter, shEdge, shMat, crew, crewGeo, suitMat, visorMat, RH, HG, w: 1, h: 1 };
-  const fit = () => {
-    const b = host.getBoundingClientRect(); cab.w = Math.max(1, b.width); cab.h = Math.max(1, b.height);
-    r.setSize(cab.w, cab.h, false); cam.aspect = cab.w / cab.h;
-    // keep the whole cutaway (bounding radius ~7.5) inside both the horizontal and vertical field of view
-    const R0 = 7.6, vf = THREE.MathUtils.degToRad(cam.fov) / 2, hf = Math.atan(Math.tan(vf) * cam.aspect), d = R0 / Math.sin(Math.min(vf, hf));
-    cam.position.set(0.62, -0.62, 0.48).normalize().multiplyScalar(d); cam.lookAt(0, 0, -0.4); cam.updateProjectionMatrix();
-  };
-  new ResizeObserver(fit).observe(host); fit();
-}
+function initCabin() { cab = createCabin($('cut'), $('cutwrap')); }
 // ------------------------------------------------------------------ holographic vehicle
 let holo = null, view = 'holo';
 export function bindVehicleView() {
@@ -631,6 +613,7 @@ export function bindVehicleView() {
     view = b.dataset.v; $('vseg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
     $('holowrap').hidden = view !== 'holo'; $('cutwrap').hidden = view !== 'cabin'; holo.visible = view === 'holo';
     if (mission) cabinFor(mission);
+    if (view === 'cabin' && cab) requestAnimationFrame(() => cab.resize());
   });
 }
 function holoFor(m) {
@@ -660,42 +643,20 @@ function thrustAt(jd) {
   return b;
 }
 
-// Low-poly crew. Local +Y is up; the group is tipped onto cabin Z and yawed to face out.
-// Ring radius, count and suit colour match the markers this replaced.
-function crewFigure(angle) {
-  const g = new THREE.Group(), suit = cab.suitMat;
-  const put = (geo, x, y, z, mat) => { const m = new THREE.Mesh(geo, mat || suit); m.position.set(x, y, z); g.add(m); return m; };
-  put(cab.crewGeo.leg, -0.10, -0.38, 0); put(cab.crewGeo.leg, 0.10, -0.38, 0);
-  put(cab.crewGeo.torso, 0, 0.13, 0);
-  put(cab.crewGeo.head, 0, 0.50, 0);
-  put(cab.crewGeo.visor, 0, 0.51, 0.175, cab.visorMat);
-  const hang = (x, rz) => {
-    const p = new THREE.Group(); p.position.set(x, 0.30, 0); p.rotation.z = rz;
-    const m = new THREE.Mesh(cab.crewGeo.arm, suit); m.position.y = -(cab.crewGeo.arm.parameters.length / 2 + cab.crewGeo.arm.parameters.radius); p.add(m); g.add(p);
-  };
-  hang(-0.20, -0.55); hang(0.20, 0.55);
-  g.rotation.x = Math.PI / 2;
-  const yaw = new THREE.Group(); yaw.rotation.z = angle + Math.PI / 2; yaw.add(g);
-  yaw.position.set(Math.cos(angle) * .8, Math.sin(angle) * .8, -cab.HG / 2 + .75);
-  return yaw;
-}
 function cabinFor(m) {
   if (!cab) initCabin();
   const n = isStar() ? Math.min(6, m.summary.crew || 0) : 4;
-  cab.crew.clear();
-  for (let k = 0; k < n; k++) cab.crew.add(crewFigure(k / Math.max(1, n) * Math.PI * 2 + 0.4));
+  cab.setCrew(n);
   const p = m.params || {};
-  $('cutnote').textContent = view !== 'cabin' ? '' : isStar() ? (p.absorbs ? 'Fuel tanks wrap the crew' : !m.summary.crew ? 'Uncrewed: no cabin' : `${sig(p.shield)} g/cm² shielding`) : `hull 4 mm 304L${shield.wall ? ` + ${shield.wall} g/cm² water` : ''} · ${shield.shelter ? `shelter ${shield.shelter} g/cm²` : 'no shelter'}`;
-  cab.astro = !!p.absorbs; cab.probe = isStar() && !m.summary.crew;
+  $('cutnote').textContent = view !== 'cabin' ? '' : isStar()
+    ? (p.absorbs ? '9 m Starship · fuel wraps the cabin' : !m.summary.crew ? '9 m Starship · uncrewed' : `9 m Starship · ${sig(p.shield)} g/cm²`)
+    : `9 m Starship · 4 mm 304L${shield.wall ? ` + ${shield.wall} g/cm² water` : ''} · ${shield.shelter ? `shelter ${shield.shelter} g/cm²` : 'no shelter'}`;
+  if (view === 'cabin') requestAnimationFrame(() => cab.resize());
 }
 function updateCabin(jd) {
-  if (!cab) return; const rate = rateNow(jd);
-  if (rate == null) { cab.r.render(cab.S, cab.cam); return; }
-  const rn = Math.min(1, Math.log10(1 + rate) / Math.log10(51));
-  const col = cab.hullGeo.attributes.color, P = cab.hullGeo.attributes.position;
-  for (let k = 0; k < P.count; k++) { const z = P.getZ(k) / cab.HG + .5; const c = cab.astro ? new THREE.Color('#7a5a2a').lerp(new THREE.Color('#d09040'), .5 + .3 * Math.sin(z * 8 + jd * .2)) : cab.heat(rn * (0.75 + 0.25 * Math.sin(z * 6 + jd * .3))); col.setXYZ(k, c.r, c.g, c.b); }
-  col.needsUpdate = true;
-  const sh = !!A && shield.shelter > 0; cab.shelter.visible = cab.shEdge.visible = sh; cab.shMat.color.copy(cab.heat(rn * .35));
-  $('cutleg').innerHTML = `<b>${rate.toFixed(2)} mSv/d</b>`;
-  cab.r.render(cab.S, cab.cam);
+  if (!cab) return;
+  const q = ratesNow(jd);
+  if (!q) { cab.render(); return; }
+  cab.update(q);
+  $('cutleg').innerHTML = doseScaleHTML(q.cabin);
 }
