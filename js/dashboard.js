@@ -48,7 +48,7 @@ export function tick(dt) {
   if (q) { $('shipclock').textContent = dur(q.tau); $('speedv').textContent = q.beta >= 0.001 ? `${(q.beta * 100).toFixed(q.beta > 0.99 ? 2 : 1)}% c` : q.beta < 1e-7 ? '0' : `${(q.beta * 299792.458).toFixed(1)} km/s`; }
   $('knob').style.left = (t * 100) + '%';
   if (Math.abs(jd - lastJd) > 1e-6) { drawChart(jd); updateRadNow(jd); lastJd = jd; }
-  if (view === 'cabin') updateCabin(jd, dt); else if (holo) { holo.setThrust(thrustAt(jd)); holo.setEntry(isStar() ? 0 : entryAt(jd)); $('holothr').textContent = holo.ascActive() ? 'ASCENT' : entryAt(jd) > 0.05 ? 'ENTRY · HEAT SHIELD' : thrustAt(jd) > 0.05 ? 'ENGINE ● BURN' : 'ENGINE ○ COAST'; holo.render(dt); }
+  if (view === 'cabin') updateCabin(jd); else if (holo) { holo.setThrust(thrustAt(jd)); holo.setEntry(isStar() ? 0 : entryAt(jd)); $('holothr').textContent = holo.ascActive() ? 'ASCENT' : entryAt(jd) > 0.05 ? 'ENTRY · HEAT SHIELD' : thrustAt(jd) > 0.05 ? 'ENGINE ● BURN' : 'ENGINE ○ COAST'; holo.render(dt); }
 }
 
 function starAt(jd) {
@@ -386,10 +386,12 @@ function initCabin() {
   const shMat = new THREE.MeshLambertMaterial({ color: 0x5a5a5a, transparent: true, opacity: .55, side: THREE.DoubleSide }), shelter = new THREE.Mesh(shG, shMat); shelter.position.z = -HG / 2 + 1.2; S.add(shelter);
   const shEdge = new THREE.LineSegments(new THREE.EdgesGeometry(shG, 30), new THREE.LineBasicMaterial({ color: 0xd0d0d0 })); shEdge.position.copy(shelter.position); S.add(shEdge);
   const crew = new THREE.Group(); S.add(crew);
-  const NP = 420, pPos = new Float32Array(NP * 3), pCol = new Float32Array(NP * 3), ps = Array.from({ length: NP }, () => ({ live: false }));
-  const pGeo = new THREE.BufferGeometry(); pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
-  S.add(new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 2.2, sizeAttenuation: false, vertexColors: true })));
-  cab = { r, S, cam, host, hull, hullGeo, heat, shelter, shEdge, shMat, crew, ps, pPos, pCol, pGeo, RH, HG, w: 1, h: 1 };
+  const crewGeo = {
+    leg: new THREE.CapsuleGeometry(0.06, 0.42, 2, 6), torso: new THREE.BoxGeometry(0.36, 0.48, 0.2),
+    head: new THREE.SphereGeometry(0.15, 12, 8), visor: new THREE.BoxGeometry(0.16, 0.06, 0.04), arm: new THREE.CapsuleGeometry(0.045, 0.36, 2, 6),
+  };
+  const suitMat = new THREE.MeshLambertMaterial({ color: 0xd8dee4 }), visorMat = new THREE.MeshLambertMaterial({ color: 0x141414 });
+  cab = { r, S, cam, host, hull, hullGeo, heat, shelter, shEdge, shMat, crew, crewGeo, suitMat, visorMat, RH, HG, w: 1, h: 1 };
   const fit = () => {
     const b = host.getBoundingClientRect(); cab.w = Math.max(1, b.width); cab.h = Math.max(1, b.height);
     r.setSize(cab.w, cab.h, false); cam.aspect = cab.w / cab.h;
@@ -437,23 +439,35 @@ function thrustAt(jd) {
   return b;
 }
 
+// Low-poly crew. Local +Y is up; the group is tipped onto cabin Z and yawed to face out.
+// Ring radius, count and suit colour match the markers this replaced.
+function crewFigure(angle) {
+  const g = new THREE.Group(), suit = cab.suitMat;
+  const put = (geo, x, y, z, mat) => { const m = new THREE.Mesh(geo, mat || suit); m.position.set(x, y, z); g.add(m); return m; };
+  put(cab.crewGeo.leg, -0.10, -0.38, 0); put(cab.crewGeo.leg, 0.10, -0.38, 0);
+  put(cab.crewGeo.torso, 0, 0.13, 0);
+  put(cab.crewGeo.head, 0, 0.50, 0);
+  put(cab.crewGeo.visor, 0, 0.51, 0.175, cab.visorMat);
+  const hang = (x, rz) => {
+    const p = new THREE.Group(); p.position.set(x, 0.30, 0); p.rotation.z = rz;
+    const m = new THREE.Mesh(cab.crewGeo.arm, suit); m.position.y = -(cab.crewGeo.arm.parameters.length / 2 + cab.crewGeo.arm.parameters.radius); p.add(m); g.add(p);
+  };
+  hang(-0.20, -0.55); hang(0.20, 0.55);
+  g.rotation.x = Math.PI / 2;
+  const yaw = new THREE.Group(); yaw.rotation.z = angle + Math.PI / 2; yaw.add(g);
+  yaw.position.set(Math.cos(angle) * .8, Math.sin(angle) * .8, -cab.HG / 2 + .75);
+  return yaw;
+}
 function cabinFor(m) {
   if (!cab) initCabin();
   const n = isStar() ? Math.min(6, m.summary.crew || 0) : 4;
   cab.crew.clear();
-  for (let k = 0; k < n; k++) { const b = new THREE.Mesh(new THREE.CapsuleGeometry(.2, .9, 4, 10), new THREE.MeshLambertMaterial({ color: 0xd8dee4 })); b.rotation.x = Math.PI / 2; const a = k / Math.max(1, n) * Math.PI * 2 + 0.4; b.position.set(Math.cos(a) * .8, Math.sin(a) * .8, -cab.HG / 2 + .75); cab.crew.add(b); }
+  for (let k = 0; k < n; k++) cab.crew.add(crewFigure(k / Math.max(1, n) * Math.PI * 2 + 0.4));
   const p = m.params || {};
   $('cutnote').textContent = view !== 'cabin' ? '' : isStar() ? (p.absorbs ? 'Fuel tanks wrap the crew' : !m.summary.crew ? 'Uncrewed: no cabin' : `${sig(p.shield)} g/cm² shielding`) : 'hull 4 mm 304L · shelter water';
   cab.astro = !!p.absorbs; cab.probe = isStar() && !m.summary.crew;
 }
-function spawn(q, kind, shelterOn) {
-  const th = Math.random() * Math.PI * 2, z = (Math.random() - .5) * cab.HG * 1.4, R0 = 13;
-  const tgt = new THREE.Vector3((Math.random() - .5) * 3, (Math.random() - .5) * 3, (Math.random() - .5) * cab.HG * .8);
-  q.o = new THREE.Vector3(Math.cos(th) * R0, Math.sin(th) * R0, z); q.d = tgt.clone().sub(q.o).normalize(); q.x = q.o.clone(); q.live = true; q.kind = kind;
-  const pen = cab.astro ? 0.0 : kind === 'gcr' ? 0.92 : kind === 'spe' ? 0.35 : 0.25;
-  q.stopR = Math.random() < pen ? (shelterOn && kind !== 'gcr' && Math.random() < .85 ? 1.6 : -1) : cab.RH; q.v = 0.35 + Math.random() * .25;
-}
-function updateCabin(jd, dt) {
+function updateCabin(jd) {
   if (!cab) return; const q = radAt(jd);
   if (!q) { cab.r.render(cab.S, cab.cam); return; }
   const beltRate = q.belt ? (sheltered ? q.belt.sheltered : q.belt.hull) : 0, rate = q.gcr + Math.max(0, q.spe) + beltRate;
@@ -462,16 +476,6 @@ function updateCabin(jd, dt) {
   for (let k = 0; k < P.count; k++) { const z = P.getZ(k) / cab.HG + .5; const c = cab.astro ? new THREE.Color('#7a5a2a').lerp(new THREE.Color('#d09040'), .5 + .3 * Math.sin(z * 8 + jd * .2)) : cab.heat(rn * (0.75 + 0.25 * Math.sin(z * 6 + jd * .3))); col.setXYZ(k, c.r, c.g, c.b); }
   col.needsUpdate = true;
   const sh = sheltered && !isStar(); cab.shelter.visible = cab.shEdge.visible = sh; cab.shMat.color.copy(cab.heat(rn * .35));
-  const nG = Math.min(6, q.gcr * 2.5 * dt * 30), nS = Math.min(20, (Math.max(0, q.spe) * 40 + beltRate * 3) * dt * 30);
-  let want = (nG + nS) * (cab.astro ? 3 : 1);
-  for (const p of cab.ps) if (!p.live && want > Math.random()) { spawn(p, Math.random() < nG / ((nG + nS) || 1) ? 'gcr' : (q.belt ? 'belt' : 'spe'), sh); want -= 1; }
-  cab.ps.forEach((p, k) => {
-    if (!p.live) { cab.pPos[k * 3 + 2] = 1e4; return; }
-    p.x.addScaledVector(p.d, p.v); const rr = Math.hypot(p.x.x, p.x.y);
-    if ((p.stopR > 0 && rr < p.stopR) || p.x.length() > 16) p.live = false;
-    cab.pPos.set([p.x.x, p.x.y, p.x.z], k * 3); cab.pCol.set(p.kind === 'gcr' ? [.85, .85, .85] : p.kind === 'belt' ? [.88, .38, .35] : [.88, .69, .31], k * 3);
-  });
-  cab.pGeo.attributes.position.needsUpdate = cab.pGeo.attributes.color.needsUpdate = true;
-  $('cutleg').innerHTML = `<span><i style="color:${C.gcr}">■</i> GCR (penetrating)</span>${isStar() ? '' : `<span><i style="color:${C.spe}">■</i> SPE p</span><span><i style="color:${C.belt}">■</i> trapped</span>`}<b>${rate.toFixed(2)} mSv/d</b>`;
+  $('cutleg').innerHTML = `<b>${rate.toFixed(2)} mSv/d</b>`;
   cab.r.render(cab.S, cab.cam);
 }

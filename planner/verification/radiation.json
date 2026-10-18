@@ -1,0 +1,202 @@
+[
+ {
+  "cat": "GCR (fit)",
+  "item": "Solar-cycle slope from CRaTER free-space Si dose 318 vs 156 uGy/d (2009/10 min vs 2013/14 max)",
+  "ours": "phi0 = 330 MV (phi 409 -> 645 MV, Usoskin/V\u00e4is\u00e4nen 2023)",
+  "ref": "ratio 2.04",
+  "src": "https://doi.org/10.1002/2015SW001314",
+  "err": "fit",
+  "result": null,
+  "note": "calibration input, not a test. Si absorbed-dose ratio used for dose equivalent (Q also varies; unquantified)"
+ },
+ {
+  "cat": "GCR (fit)",
+  "item": "Amplitude from MSL/RAD cruise Dec 2011-Jul 2012",
+  "ours": "1.84 mSv/d at phi 578 MV",
+  "ref": "1.84 +- 0.30 mSv/d",
+  "src": "https://doi.org/10.1126/science.1235989",
+  "err": "fit",
+  "result": null,
+  "note": "calibration input"
+ },
+ {
+  "cat": "GCR (held-out)",
+  "item": "ExoMars TGO Liulin-MO cruise",
+  "ours": "2.26 mSv/d (phi 510 MV)",
+  "ref": "2.00 +- 0.40",
+  "src": "Semkova et al. 2018 Icarus 303:53 (1.97/2.04 +-0.4 mSv/d, ~10 g/cm^2) https://ui.adsabs.harvard.edu/abs/2018Icar..303...53S",
+  "err": "+13.1%",
+  "result": true,
+  "note": "pass = within 2 sigma"
+ },
+ {
+  "cat": "GCR (held-out)",
+  "item": "LRO/CRaTER, Artemis I period",
+  "ours": "1.54 mSv/d (phi 636 MV)",
+  "ref": "1.55 +- 0.31",
+  "src": "quoted in Artemis I paper, Nature 2024 https://www.nature.com/articles/s41586-024-07927-7",
+  "err": "-0.4%",
+  "result": true,
+  "note": "pass = within 2 sigma; phi from SSN regression (Oulu series ends 2021)"
+ },
+ {
+  "cat": "GCR (held-out)",
+  "item": "Orion HERA, Artemis I (heavier shielding)",
+  "ours": "1.08 mSv/d (phi 636 MV)",
+  "ref": "1.10 +- 0.14",
+  "src": "Artemis I HERA 0.96-1.24 mSv/d, Nature 2024; tests the -30%/+80% shielding factor",
+  "err": "-1.7%",
+  "result": true,
+  "note": "pass = within 2 sigma; Orion case uses the Artemis-I shielding factor 0.7 (-30%); phi from SSN regression (Oulu series ends 2021)"
+ },
+ {
+  "cat": "Solar",
+  "item": "phi(SSN) lagged regression 1964-2021",
+  "ours": "phi = 441 + 2.29 SSN(t-6 mo); R^2 0.78, sigma 78 MV",
+  "ref": "Oulu phi monthly",
+  "src": "https://cosmicrays.oulu.fi/phi/phi.html",
+  "err": "\u2014",
+  "result": null,
+  "note": "sigma propagated into MC"
+ },
+ {
+  "cat": "Solar",
+  "item": "Cycle 25 maximum (13-month smoothed SSN)",
+  "ours": "159.2 (our 13-mo boxcar on NOAA monthly)",
+  "ref": "160.9 (SILSO, Oct 2024)",
+  "src": "https://www.sidc.be/article/solar-cycle-25-reached-its-maximum-october-2024",
+  "err": "-1.0%",
+  "result": true,
+  "note": ""
+ },
+ {
+  "cat": "Solar",
+  "item": "Cycle 26 forecast",
+  "ours": "start U(2029-2032), amplitude drawn from cycles 19-25 maxima 287, 158, 232, 213, 181, 115, 159; mean cycle shape",
+  "ref": "NOAA: cycle 26 begins Jan 2029-Dec 2032; no amplitude forecast",
+  "src": "https://www.swpc.noaa.gov/products/solar-cycle-progression",
+  "err": "\u2014",
+  "result": null,
+  "note": "no published cycle-26 amplitude exists; this is our assumption"
+ },
+ {
+  "cat": "SPE",
+  "item": "Events Phi30>=1e7 in cycle 1954.3-1964.8 (rate \u221d SSN, k fitted 1986-2023)",
+  "ours": "14.5",
+  "ref": "31 (catalogue)",
+  "src": "https://zenodo.org/records/15083732",
+  "err": "-53.1%",
+  "result": false,
+  "note": "out-of-sample: pre-1986 catalogue (Shea & Smart) lists ~2x more events -> catalogue inhomogeneity; modern rate is used"
+ },
+ {
+  "cat": "SPE",
+  "item": "Events Phi30>=1e7 in cycle 1964.8-1976.2 (rate \u221d SSN, k fitted 1986-2023)",
+  "ours": "11.1",
+  "ref": "28 (catalogue)",
+  "src": "https://zenodo.org/records/15083732",
+  "err": "-60.4%",
+  "result": false,
+  "note": "out-of-sample: pre-1986 catalogue (Shea & Smart) lists ~2x more events -> catalogue inhomogeneity; modern rate is used"
+ },
+ {
+  "cat": "SPE",
+  "item": "Events Phi30>=1e7 in cycle 1976.2-1986.7 (rate \u221d SSN, k fitted 1986-2023)",
+  "ours": "13.1",
+  "ref": "27 (catalogue)",
+  "src": "https://zenodo.org/records/15083732",
+  "err": "-51.6%",
+  "result": false,
+  "note": "out-of-sample: pre-1986 catalogue (Shea & Smart) lists ~2x more events -> catalogue inhomogeneity; modern rate is used"
+ },
+ {
+  "cat": "SPE",
+  "item": "Events Phi30>=1e7 in cycle 1986.7-1996.6 (rate \u221d SSN, k fitted 1986-2023)",
+  "ours": "11.8",
+  "ref": "11 (catalogue)",
+  "src": "https://zenodo.org/records/15083732",
+  "err": "+7.2%",
+  "result": true,
+  "note": "in-sample for >=1986"
+ },
+ {
+  "cat": "SPE",
+  "item": "Events Phi30>=1e7 in cycle 1996.6-2008.9 (rate \u221d SSN, k fitted 1986-2023)",
+  "ours": "11.4",
+  "ref": "13 (catalogue)",
+  "src": "https://zenodo.org/records/15083732",
+  "err": "-12.5%",
+  "result": true,
+  "note": "in-sample for >=1986"
+ },
+ {
+  "cat": "SPE",
+  "item": "Events Phi30>=1e7 in cycle 2008.9-2019.9 (rate \u221d SSN, k fitted 1986-2023)",
+  "ours": "6.1",
+  "ref": "7 (catalogue)",
+  "src": "https://zenodo.org/records/15083732",
+  "err": "-13.0%",
+  "result": true,
+  "note": "in-sample for >=1986"
+ },
+ {
+  "cat": "SPE",
+  "item": "Events Phi30>=1e7 in cycle 2019.9-2024.0 (rate \u221d SSN, k fitted 1986-2023)",
+  "ours": "2.8",
+  "ref": "1 (catalogue)",
+  "src": "https://zenodo.org/records/15083732",
+  "err": "+179.5%",
+  "result": true,
+  "note": "in-sample for >=1986"
+ },
+ {
+  "cat": "SPE",
+  "item": "MSL/RAD cruise SEP dose from catalogue events (Dec 2011-Jul 2012), ~10 g/cm^2, r~1.2 AU",
+  "ours": "1.8 mSv (BFO, 2 catalogue events)",
+  "ref": "~25 mGy total from 4-5 SEP events (point dose, Si)",
+  "src": "Zeitlin 2013 / Semkova 2020 summary",
+  "err": "-92.9%",
+  "result": false,
+  "note": "model gives BFO (body self-shielded) dose; RAD is a lightly shielded point detector, and 2 of RAD's events are below the catalogue threshold. Not like-for-like: SPE absolute calibration is UNVALIDATED (factor ~3-10)."
+ },
+ {
+  "cat": "SPE",
+  "item": "Aug-1972 dose vs shielding (input)",
+  "ours": "590/220/60 mSv @5/10/20 g/cm^2; hull 2.88 g/cm^2 Al-eq -> 896 (extrapolated)",
+  "ref": "0.59/0.22/0.06 Sv BFO",
+  "src": "https://hdl.handle.net/2346/84719",
+  "err": "input",
+  "result": null,
+  "note": "below 5 g/cm^2 log-linear extrapolation (likely overestimates BFO dose at thin shielding)"
+ },
+ {
+  "cat": "Aero",
+  "item": "Entry integrator vs Allen-Eggers ballistic peak deceleration (Earth, 7.5 km/s, -20 deg)",
+  "ours": "44.8 g",
+  "ref": "42.5 g (analytic)",
+  "src": "Allen & Eggers 1958, NACA TR-1381",
+  "err": "+5.5%",
+  "result": false,
+  "note": "checks the integrator only, not the vehicle model. Allen-Eggers neglects gravity and curvature, which plausibly explains +5.5%, but it exceeds the 5% tolerance fixed before running"
+ },
+ {
+  "cat": "MMOD",
+  "item": "Gr\u00fcn 1985 flux implementation",
+  "ours": "F(>=1e-6 g) = 4.72e-08 m^-2 s^-1 at 1 AU",
+  "ref": "constants per MEM 3 doc",
+  "src": "https://ntrs.nasa.gov/citations/20200000563",
+  "err": "\u2014",
+  "result": null,
+  "note": "no independent numeric value found to compare against"
+ },
+ {
+  "cat": "Belts",
+  "item": "Jupiter dose model",
+  "ours": "Ringwald surface dose rates x Juno-vault attenuation",
+  "ref": "none for crewed spacecraft",
+  "src": "Ringwald 2000; NASA Juno",
+  "err": "\u2014",
+  "result": null,
+  "note": "ORDER OF MAGNITUDE ONLY (x/\u00f710); unvalidated"
+ }
+]

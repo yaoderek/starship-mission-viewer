@@ -1,0 +1,106 @@
+[
+ {
+  "name": "Return leg (Mars->Earth) Lambert, propagated endpoint error",
+  "ref": "< 1000 km",
+  "ours": "0.000143 km",
+  "result": true,
+  "note": "universal-variable propagation of the Lambert v1",
+  "src": "internal"
+ },
+ {
+  "name": "Mars ascent to 100 km LMO",
+  "ref": "4.2 km/s (NTRS 20210026187, ideal +20%)",
+  "ours": "3.503 x 1.2 = 4.20 km/s; used 4.15",
+  "result": true,
+  "note": "Circular speed 3.50 km/s + 20% losses; MSR MAV 4.15 km/s",
+  "src": "4.15 km/s surface->100 km LMO: Mars Sample Return MAV requirements, NTRS 20130013542; 4.2 "
+ },
+ {
+  "name": "Conjunction-class Mars: stay / total duration",
+  "ref": "~500 d stay, ~900 d total; transits 175-225 d (NASA SP-2009-566 DRA 5.0)",
+  "ours": "stay 402 d, total 933 d, out 316 / ret 215 d",
+  "result": true,
+  "note": "min-\u0394v search over stays 400-620 d; optimum sits at the 400 d edge (shorter stays cost more)",
+  "src": "NASA SP-2009-566"
+ },
+ {
+  "name": "Conjunction-class Mars: transit times",
+  "ref": "175-225 d each way (DRA 5.0 crew transits)",
+  "ours": "out 316 d / ret 215 d",
+  "result": false,
+  "note": "MISMATCH: our search minimises \u0394v with no crew-transit cap, so it picks a slow 316-d outbound; DRA caps transits for crew health",
+  "src": "NASA SP-2009-566"
+ },
+ {
+  "name": "Opposition-class Mars: stay / total duration",
+  "ref": "30-90 d stay, ~400-650 d total, Venus swing-by often used (DRA 5.0 short-stay)",
+  "ours": "stay 58 d, total 605 d, via venus",
+  "result": true,
+  "note": "",
+  "src": "NASA SP-2009-566"
+ },
+ {
+  "name": "Opposition costs more \u0394v than conjunction",
+  "ref": "qualitative (DRA 5.0)",
+  "ours": "7.93 vs 5.69 km/s",
+  "result": true,
+  "note": "",
+  "src": "NASA SP-2009-566"
+ },
+ {
+  "name": "ISRU power: NASA kiloton study (300 t in 20 months)",
+  "ref": "~230 kW (NTRS 20230017069)",
+  "ours": "230 kW at 11.2 kWh/kg; 280 kW at central 13.6",
+  "result": true,
+  "note": "lower bound of our range reproduces the study; central 13.6 is +21%",
+  "src": "NTRS 20230017069"
+ },
+ {
+  "name": "ISRU power: Kleinhenz & Paz 2017 (29.7 t in 480 d)",
+  "ref": "52 kW all-electric / 35 kW recuperated",
+  "ours": "52.1 / 35.1 kW",
+  "result": true,
+  "note": "by construction (range end-points taken from this paper) - consistency, not independent",
+  "src": "NTRS 20170001421"
+ },
+ {
+  "name": "ISRU plant mass: Kleinhenz 1.7 t",
+  "ref": "1.7 t",
+  "ours": "1.70 t",
+  "result": true,
+  "note": "by construction",
+  "src": "NTRS 20170001421"
+ },
+ {
+  "name": "Return propellant vs SpaceX figure",
+  "ref": "~1100 t per ship (Musk IAC 2017)",
+  "ours": "ours 605 t (dry 120 t, return payload 20 t); dry 85 t + 50 t payload: 584 t",
+  "result": null,
+  "note": "INFO: SpaceX figure includes unstated payload, margins and possibly full-tank fill; not directly comparable",
+  "src": "Musk 2017"
+ },
+ {
+  "name": "Round-trip GCR+surface dose, MSL-era conditions (180/500/180 d)",
+  "ref": "~1.01 Sv (Hassler et al. 2014: 2x0.33 + 0.32 Sv)",
+  "ours": "0.87 Sv (GCR part, cruise at 1.25 AU from 2011-11)",
+  "result": true,
+  "note": "cruise rate follows the solar-cycle model through 2012-14 rather than the fixed 1.84 mSv/d",
+  "src": "Hassler 2014 Science 343:1244797; Zeitlin 2013 Science 340:1080"
+ },
+ {
+  "name": "Regolith shielding (1 m)",
+  "ref": "-71% effective dose (Geant4, NST 2022); -41% primary-only (PSS 2022); 1 m meets all PELs (HZETRN, TTU 2015)",
+  "ours": "factor 0.29",
+  "result": null,
+  "note": "INFO: published values disagree by ~2x; we use the Geant4 effective-dose ratio",
+  "src": "Geant4 Mars subsurface effective dose 121 / 67.6 / 35.0 mSv/yr at 0 / 0.5 / 1.0 "
+ },
+ {
+  "name": "Multi-burn propellant chaining == single burn (no payload drop)",
+  "ref": "277.403 t",
+  "ours": "277.403 t",
+  "result": true,
+  "note": "",
+  "src": "internal"
+ }
+]
