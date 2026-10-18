@@ -148,7 +148,6 @@ function buildPlanets() {
       const ring = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ map: ringTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 1 }));
       ring.rotation.x = -Math.PI / 2; tilt.add(ring);
     }
-    if (BELTS[name]) { const b = beltCloud(name); tilt.add(b); group.userData.belt = b; b.userData.label = makeLabel(name === 'earth' ? 'Van Allen belts' : 'Radiation belts', 'belt', 55, () => b.userData.anchor.getWorldPosition(new THREE.Vector3()), 'planet'); }
     scene.add(group); hoverables.push(mesh);
     const dot = sprite(DOT, PCOL[name], 9); dot.userData = { kind: 'planet', name }; scene.add(dot); hoverables.push(dot);
     planets[name] = { group, tilt, mesh, track: P.track, dot, orbit: P.orbit, mat: om };
@@ -263,50 +262,12 @@ export function flyTo(target, dist, dir) {
 }
 export function focusPlanet(name) {
   if (!planets[name]) return; focus = name; const p = planets[name];
-  const far = BELTS[name] ? BELTS[name].outer * 3.4 : 8;   // stand back far enough to see the radiation belts
-  flyTo(p.group.position, trueScale ? baseSize(name) * far : Math.max(0.2, p.group.scale.x * far * 1.75), BELTS[name] ? new THREE.Vector3(0.35, -1, 0.32) : undefined);
+  flyTo(p.group.position, trueScale ? baseSize(name) * 8 : Math.max(0.2, p.group.scale.x * 14));
 }
 export function flyToEvent(e) { focus = null; flyTo(new THREE.Vector3(...e.pos), mode === 'interstellar' ? 2.5 : 0.8); }
 export function setScale(v) { trueScale = v; if (focus) focusPlanet(focus); }
 export function setRelativistic(v) { relView = v; }
 export const getMode = () => mode;
-
-// ------------------------------------------------------------------ radiation belts
-// Trapped particles follow dipole field lines r = L cos²(latitude). Earth: inner proton belt L 1.2-2.5 (peak ~1.5),
-// slot, outer electron belt L 3-7 (peak ~4.5); magnetic axis ~10° off the spin axis. Jupiter: intense belts out to
-// ~10 Rj with the Io plasma torus at 5.9 Rj. Drawn in planet radii, so they scale with the planet.
-const BELTS = {
-  earth: { tilt: 10, outer: 7, shells: [{ L0: 1.2, L1: 2.4, peak: 1.6, n: 3500, col: [0.88, 0.38, 0.35] }, { L0: 3.0, L1: 6.5, peak: 4.5, n: 5500, col: [0.85, 0.55, 0.38] }] },
-  jupiter: { tilt: 9.6, outer: 10, shells: [{ L0: 1.3, L1: 3.0, peak: 1.6, n: 3500, col: [0.88, 0.38, 0.35] }, { L0: 4.5, L1: 10, peak: 5.9, n: 5500, col: [0.85, 0.5, 0.38] }] },
-};
-function beltCloud(name) {
-  const B = BELTS[name], pos = [], col = [];
-  let seed = 9; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (const sh of B.shells) for (let i = 0; i < sh.n; i++) {
-    // L skewed towards the peak, latitude limited to where the field line stays above the surface
-    const u = rnd(), L = u < 0.5 ? sh.L0 + (sh.peak - sh.L0) * Math.sqrt(2 * u) : sh.L1 - (sh.L1 - sh.peak) * Math.sqrt(2 * (1 - u));
-    const lmax = Math.acos(Math.sqrt(Math.min(1, 1.05 / L))), lat = (rnd() * 2 - 1) * Math.min(lmax, 0.9) * Math.pow(rnd(), 1.4), lon = rnd() * Math.PI * 2;
-    const r = L * Math.cos(lat) ** 2, c = Math.cos(lat);
-    pos.push(r * c * Math.cos(lon), r * Math.sin(lat), r * c * Math.sin(lon));
-    const k = 0.25 + 0.45 * Math.exp(-(((L - sh.peak) / (sh.L1 - sh.L0)) ** 2) * 10) * Math.cos(lat) ** 4;
-    col.push(sh.col[0] * k, sh.col[1] * k, sh.col[2] * k);
-  }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 1.4, sizeAttenuation: false, map: DOT, vertexColors: true, transparent: true, depthWrite: false, opacity: 0.6 }));
-  pts.rotation.z = THREE.MathUtils.degToRad(B.tilt); pts.visible = false;
-  // faint field lines through the heart of each belt so the doughnut shape reads
-  const fl = [];
-  for (const sh of B.shells) for (const L of [sh.peak]) for (let m = 0; m < 6; m++) {
-    const lon = m / 6 * Math.PI * 2, lmax = Math.acos(Math.sqrt(Math.min(1, 1 / L)));
-    for (let k = 0; k < 40; k++) { const a = -lmax + 2 * lmax * k / 40, b = -lmax + 2 * lmax * (k + 1) / 40;
-      for (const q of [a, b]) { const r = L * Math.cos(q) ** 2; fl.push(r * Math.cos(q) * Math.cos(lon), r * Math.sin(q), r * Math.cos(q) * Math.sin(lon)); } }
-  }
-  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(fl, 3));
-  const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0xa04844, transparent: true, opacity: 0.16, depthWrite: false }));
-  pts.add(lines); pts.userData.lines = lines;
-  const anchor = new THREE.Object3D(); anchor.position.set(B.outer * 0.72, B.outer * 0.32, 0); pts.add(anchor); pts.userData.anchor = anchor;
-  return pts;
-}
 
 // ------------------------------------------------------------------ solar storm
 // A storm in the current run: a shell of particles racing out from the Sun past the ship, and the Sun flaring.
@@ -369,7 +330,6 @@ export function update(jd, dt, beta = 0) {
       p.tilt.children.forEach(c => { if (c.userData.spin) c.rotation.y = t0 * c.userData.spin; if (c.userData.atmo) c.userData.atmo.uniforms.sunPos && c.userData.atmo.uniforms.sunPos.value.set(0, 0, 0); });
       const px = p.group.scale.x / Math.max(1e-12, camera.position.distanceTo(p.group.position)) * H / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
       p.dot.material.opacity = Math.max(0, Math.min(1, (6 - px) / 3));
-      const belt = p.group.userData.belt; if (belt) { const show = px * BELTS[name].outer > 16, op = Math.min(1, (px * BELTS[name].outer - 16) / 30); belt.visible = show; belt.material.opacity = 0.6 * op; belt.userData.lines.material.opacity = 0.16 * op; belt.userData.label.visible = show && px * BELTS[name].outer > 60; }
       // orbit tail phase: nearest orbit vertex to the planet
       let best = 0, bd = Infinity; const o = p.orbit, q = p.group.position;
       for (let i = 0; i < o.length; i += 2) { const dd = (o[i][0] - q.x) ** 2 + (o[i][1] - q.y) ** 2; if (dd < bd) { bd = dd; best = i; } }

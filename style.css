@@ -288,7 +288,6 @@ table.mini td.dim{white-space:normal}
 .est-h{margin-top:8px;border:1px solid var(--ln);border-bottom:0}
 .est-grid .wide{grid-column:1/-1}
 .est-note{font-size:9.5px;line-height:1.4;margin-top:5px}
-.lb.belt{color:#e0907a;border-color:#5a2e28;font-size:9px;text-transform:uppercase;letter-spacing:.06em}
 .lb.storm{color:var(--warn);border-color:#5e4a20;text-transform:uppercase;letter-spacing:.06em}
 .est-rad{grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--ln)}
 .est-rad em{display:block;font-style:normal;font-size:9px;color:var(--mute)}

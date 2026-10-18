@@ -175,7 +175,7 @@ async function estimate() {
       <div><span>Top speed</span><b>${S.beta >= 0.001 ? (S.beta * 100).toFixed(S.beta > 0.99 ? 2 : 1) + '% c' : f1(S.beta * 299792.458, 1) + ' km/s'}</b></div><div><span>Arrives</span><b>${S.decel ? 'and stops' : 'flyby'}</b></div>
       ${p.kind === 'rocket' ? `<div><span>Mass ratio</span><b>${sig(S.mr)}</b></div><div><span>Fuel needed</span><b class="${short ? 'no' : ''}">${mass(S.prop_used_t)}</b></div>` : ''}
     </div>${short ? `<div class="bad">Needs ${sig(S.prop_used_t / p.prop)}× the propellant loaded. The trip shown follows the book anyway; untick “Fly the book’s profile” to see what the fuel really buys.</div>` : ''}
-    ${S.crew && S.ship_days > 365 * 60 ? '<div class="bad">Longer than a human lifetime aboard.</div>' : ''}`;
+    ${S.crew && S.ship_days > 365 * 60 ? '<div class="bad">Longer than a human lifetime aboard.</div>' : ''}${starRadEstimate(m)}`;
     return;
   }
   el.innerHTML = '<div class="dim">Loading trajectories…</div>'; $('launch').disabled = true; preview = null;
@@ -188,6 +188,16 @@ async function estimate() {
   el.innerHTML = `<div class="est-grid"><div><span>Options that work</span><b class="${ok.length ? 'ok' : 'no'}">${ok.length} of ${data.missions.length}</b></div>
     ${best ? `<div><span>Fewest tankers</span><b>${best.summary.tankers_needed}</b></div><div><span>That route</span><b>${esc(best.name)}</b></div><div><span>Launch / duration</span><b>${best.summary.launch}, ${int(best.summary.total_days ?? best.summary.tof_years * 365.25)} d</b></div>` : ''}
     </div>${ok.length ? '' : `<div class="bad">Nothing closes with this vehicle: ${esc((data.missions[0].summary.why || [])[0] || '')}. You can still open the dashboard to see why.</div>`}${radEstimate(data, shown, ok, p)}`;
+}
+// Interstellar crew radiation before launch (probes: what a crew would get in that hull).
+function starRadEstimate(m) {
+  const T = m.radiation.totals, lethal = T.acute >= 6000, cls = lethal || T.total_mean > 600 ? 'no' : T.total_mean > 300 ? 'wn' : 'ok', pc = x => x < 0.001 ? '<0.1%' : (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
+  const who = m.summary.crew ? 'Crew' : 'If crewed';
+  return `<div class="est-grid est-rad">
+    <div><span>${who} · dose</span><b class="${cls}">${lethal ? 'lethal' : T.total_mean > 10000 ? sig(T.total_mean / 1000) + ' Sv' : int(T.total_mean) + ' mSv'}</b><em>${lethal ? `${sig(T.peak_rate / 24000)} Sv/hour at cruise` : `${int(T.total_mean / 6)}% of career limit`}</em></div>
+    <div><span>Cancer chance</span><b class="${cls}">${lethal ? '—' : Rad.cancerLabel(T.total_mean)}</b><em>${lethal ? 'would not survive' : T.total_mean > 10000 ? 'beyond any data' : `bad case ${Rad.cancerLabel(T.total_p95)}`}</em></div>
+    <div><span>Interstellar gas</span><b class="${T.gas > 1 ? 'no' : 'ok'}">${T.gas > 1 ? sig(T.gas / 1000) + ' Sv' : 'stopped'}</b><em>${m.params.absorbs ? 'Astrophage absorbs it' : `${sig(m.params.frontal)} g/cm² bow shield`}</em></div>
+    </div>`;
 }
 // Crew radiation risk before launch: the route shown above and the lowest-dose route that still closes.
 function radEstimate(data, shown, ok, p) {

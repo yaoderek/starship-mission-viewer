@@ -30,6 +30,8 @@ export const sickness = D => D <= 0 ? 0 : 0.5 * (1 + erf(Math.log(D / RISK.arsMe
 // Masses use a 9 m x 10 m crew deck (~410 m²) and a 1.6 m x 2.4 m shelter (~40 m²): 1 g/cm² = 10 kg/m².
 export const HULL = 3.2;   // g/cm², 4 mm 304L stainless (planner HULL_GCM2)
 export const cancerChance = D => 1 - Math.exp(-RISK.cancerPerSv * D / 1000);   // D in mSv
+// Past ~10 Sv the cancer models have no data behind them (and heart, eye and brain damage take over), so say so.
+export const cancerLabel = D => D > 10000 ? 'very high' : (p => p < 0.001 ? '<0.1%' : (p * 100).toFixed(p < 0.1 ? 1 : 0) + '%')(cancerChance(D));
 export const CABIN_M2 = 410, SHELTER_M2 = 40, BASE_SHELTER = 20;
 export const shieldMass = s => (CABIN_M2 * s.wall + SHELTER_M2 * (s.shelter - BASE_SHELTER)) * 0.01;   // t above baseline
 // GCR effective dose vs water depth at solar minimum (NASA TM-2012-217361 Table 6a: 0.57/0.53/0.48/0.46 Sv/yr at

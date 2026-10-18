@@ -63,7 +63,15 @@ function starAt(jd) {
 
 // ------------------------------------------------------------------ comparison table
 const totDays = m => m.summary.total_days ?? m.summary.tof_years * 365.25;
-const cancerCell = d => d.cancer == null ? '<span class="dim">—</span>' : `<span class="${d.mean > 600 ? 'no' : d.mean > 300 ? 'wn' : ''}">${fmtP(d.cancer)}</span>`;
+const cancerCell = d => d.cancer == null ? '<span class="dim">—</span>' : `<span class="${d.mean > 600 ? 'no' : d.mean > 300 ? 'wn' : ''}">${Rad.cancerLabel(d.mean)}</span>`;
+// Interstellar: probes show what a crew would get in that hull, dimmed. Beyond ~6 Sv in two days nobody survives.
+const LETHAL = 6000;
+function starRisk(m) { const T = m.radiation.totals, lethal = T.acute >= LETHAL; return { T, lethal, cancer: Rad.cancerChance(T.total_mean), sick: Rad.sickness(T.acute), sort: lethal ? 2 + T.acute / 1e12 : Rad.cancerChance(T.total_mean) }; }
+const probeTip = m => m.summary.crew ? '' : ' title="Uncrewed: what a crew would receive in this hull"';
+function starDoseCell(m) { const { T, lethal } = starRisk(m), c = m.summary.crew ? '' : 'dim';
+  return `<span class="${c}"${probeTip(m)}>${lethal ? '<span class="no">lethal</span>' : T.total_mean > 10000 ? `<span class="no">${bigDose(T.total_mean)}</span>` : doseCell(T.total_mean)}</span>`; }
+function starCancerCell(m) { const r = starRisk(m), c = m.summary.crew ? '' : 'dim';
+  return `<span class="${c}"${probeTip(m)}>${r.lethal ? '<span class="no">—</span>' : `<span class="${r.T.total_mean > 600 ? 'no' : r.T.total_mean > 300 ? 'wn' : ''}">${Rad.cancerLabel(r.T.total_mean)}</span>`}</span>`; }
 const doseCell = v => v == null ? '<span class="dim">—</span>' : `<span class="${v > 600 ? 'no' : v > 300 ? 'wn' : ''}">${int(v)}</span>`;
 const go = m => m.summary.feasible ? '<span class="ok">GO</span>' : `<span class="no" title="${esc((m.summary.why || []).join('; '))}">NO-GO</span>`;
 const pct = b => b >= 0.99999 ? '100%' : b >= 0.01 ? (b * 100).toFixed(b >= 0.99 ? (b >= 0.9995 ? 2 : 1) : 0) + '%' : (b * 299792.458).toFixed(0) + ' km/s';
@@ -85,15 +93,19 @@ const HIST_COLS = [
   ['dur', 'Cruise', '', m => m.summary.total_days, m => dur(m.summary.total_days)],
   ['c3', 'C3', 'km²/s²', m => m.summary.c3, m => f1(m.summary.c3, 1)],
   ['fb', 'Flybys', '', m => m.summary.flybys.length, m => m.summary.flybys.length ? m.summary.flybys.map(b => b[0].toUpperCase()).join('-') : '<span class="dim">direct</span>']];
+// Doses that run past 10 Sv read better in Sv, and past 10,000 Sv in powers of ten.
+const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', sup = n => String(n).split('').map(c => SUP[+c]).join('');
+function bigDose(v) { const S = v / 1000; if (v < 1e4) return int(v); if (S < 1e4) return sig(S) + ' Sv'; const e = Math.floor(Math.log10(S)); return `${(S / 10 ** e).toFixed(1)}×10${sup(e)} Sv`; }
+const durS = d => d > 365.25 * 1000 ? `${sig(d / 365.25 / 1000)}k yr` : dur(d);   // compact for the table
 const STAR_COLS = [
   ['name', 'Vehicle', '', m => m.rank, m => `${m.name}${(m.tags || []).includes('yours') ? '<span class="tag acc">SELECTED</span>' : ''}<div class="sub">${m.model}</div>`, 'l'],
-  ['crew', 'Crew', '', m => m.summary.crew, m => m.summary.crew || '<span class="dim">probe</span>'],
+  ['crew', 'Crew', '', m => m.summary.crew, m => m.summary.crew || '<span class="dim" title="Uncrewed probe">—</span>'],
   ['beta', 'Top speed', 'of c', m => m.summary.beta, m => pct(m.summary.beta)],
-  ['earth', 'Earth time', '', m => m.summary.earth_days, m => dur(m.summary.earth_days)],
-  ['ship', 'Ship time', '', m => m.summary.ship_days, m => `<span class="acc">${dur(m.summary.ship_days)}</span>`],
-  ['prop', 'Propellant', '', m => m.summary.prop_used_t, m => m.summary.kind === 'rocket' ? mass(m.summary.prop_used_t) : '<span class="dim">none</span>'],
-  ['arr', 'At target', '', m => m.summary.decel ? 0 : 1, m => m.summary.decel ? 'stops' : '<span class="wn">flyby</span>', 'l'],
-  ['dose', 'Dose', 'mSv', m => m.summary.crew ? m.summary.dose_mean : 1e12, m => m.summary.crew ? doseCell(m.summary.dose_mean) : '<span class="dim">—</span>']];
+  ['earth', 'Earth time', '', m => m.summary.earth_days, m => durS(m.summary.earth_days)],
+  ['ship', 'Ship time', '', m => m.summary.ship_days, m => `<span class="acc">${durS(m.summary.ship_days)}</span>`],
+  ['arr', 'Arrive', '', m => m.summary.decel ? 0 : 1, m => m.summary.decel ? 'stops' : '<span class="wn">flyby</span>', 'l'],
+  ['dose', 'Dose', 'mSv', m => m.summary.dose_mean, m => starDoseCell(m)],
+  ['cancer', 'Cancer', 'chance', m => starRisk(m).sort, m => starCancerCell(m)]];
 
 function renderCmp() {
   const COLS = isStar() ? STAR_COLS : isHist() ? HIST_COLS : SOLAR_COLS;
@@ -268,10 +280,10 @@ export function bindRadControls() {
 }
 function bar(label, v, lim, limLabel) {
   const f = v / lim, c = f > 1 ? 'no' : f > 0.6 ? 'wn' : 'ok';
-  return `<div class="lim"><div class="lt"><span>${label}</span><b class="${c}">${int(v)} <em>/ ${lim} mSv</em></b></div><div class="lbar"><i class="${c}" style="width:${Math.min(100, f * 100).toFixed(1)}%"></i></div><div class="ln">${limLabel}</div></div>`;
+  return `<div class="lim"><div class="lt"><span>${label}</span><b class="${c}">${v < 1e4 ? int(v) : bigDose(v)} <em>/ ${lim} mSv</em></b></div><div class="lbar"><i class="${c}" style="width:${Math.min(100, f * 100).toFixed(1)}%"></i></div><div class="ln">${limLabel}</div></div>`;
 }
 function riskTiles(mean, bad, extra = '') {
-  return `<div class="rk ${lvlCls(mean, 600, 300)}" title="Extra lifetime chance of cancer caused by this mission's radiation, on top of the ~40% everyone has"><span>Cancer from radiation</span><b>${fmtP(Rad.cancerChance(mean))}</b><em>bad case ${fmtP(Rad.cancerChance(bad))} · ${int(mean)} mSv</em></div>${extra}`;
+  return `<div class="rk ${lvlCls(mean, 600, 300)}" title="Extra lifetime chance of cancer caused by this mission's radiation, on top of the ~40% everyone has"><span>Cancer from radiation</span><b>${Rad.cancerLabel(mean)}</b><em>${mean > 10000 ? `${sig(mean / 1000)} Sv, far beyond any data` : `bad case ${Rad.cancerLabel(bad)} · ${int(mean)} mSv`}</em></div>${extra}`;
 }
 function renderRad() {
   const R = mission.radiation, pr = planetRad();
@@ -295,13 +307,18 @@ function renderRad() {
 }
 function renderRadStar() {
   const R = mission.radiation, T = R.totals;
-  $('risk').innerHTML = mission.summary.crew ? riskTiles(T.total_mean, T.total_p95) : '';
-  const crewNote = !mission.summary.crew ? '<div class="empty">Uncrewed probe. Numbers show what a crew would receive in this hull.</div>' : '';
+  const r = starRisk(mission), probe = !mission.summary.crew, pr = probe ? ' <span class="dim">if crewed</span>' : '';
+  $('risk').innerHTML = (r.lethal
+    ? `<div class="rk no"><span>Cancer from radiation${pr}</span><b>—</b><em>the crew would not survive the trip</em></div>`
+    : riskTiles(T.total_mean, T.total_p95).replace('Cancer from radiation', 'Cancer from radiation' + pr)) +
+    `<div class="rk ${r.lethal ? 'no' : r.sick > 0.01 ? 'wn' : 'ok'}"><span>Radiation sickness${pr}</span><b>${r.lethal ? 'LETHAL' : fmtP(r.sick)}</b><em>${r.lethal ? `${bigDose(T.peak_rate / 24)} per hour at cruise` : `peak ${sig(T.peak_rate)} mSv/day`}</em></div>` +
+    `<div class="rk ${T.gas > 1 ? 'no' : ''}"><span>Interstellar gas</span><b>${T.gas > 1 ? (T.gas < 1e4 ? int(T.gas) + ' mSv' : bigDose(T.gas)) : 'stopped'}</b><em>${mission.params.absorbs ? 'Astrophage absorbs it' : `${sig(mission.params.frontal)} g/cm² bow shield`}</em></div>`;
+  const crewNote = probe ? '<div class="empty">Uncrewed probe. Numbers show what a crew would receive in this hull.</div>' : '';
   $('limits').innerHTML = crewNote + bar('Whole mission, expected', T.total_mean, 600, 'NASA career limit (NASA-STD-3001)') +
     bar('Worst 30 days, bad case', T.win30_p95, 250, '30-day blood-forming organ limit') + bar('Worst year, bad case', T.win365_p95, 500, '1-year blood-forming organ limit');
-  const rows = [['Cosmic rays', T.gcr, `${sig(T.gcr_p05)}–${sig(T.gcr_p95)}`], ['Shielding', null, mission.params.absorbs ? 'Astrophage fuel (absorbs nearly everything)' : `${sig(mission.params.shield)} g/cm² water-equivalent`], ['Time aboard', null, dur(T.days) + ' ship time']];
+  const rows = [['Cosmic rays', T.gcr, `${sig(T.gcr_p05)}–${sig(T.gcr_p95)}`], ...(T.gas ? [['Interstellar gas', T.gas, 'hydrogen hitting the bow at cruise speed']] : []), ['Shielding', null, mission.params.absorbs ? 'Astrophage fuel (absorbs nearly everything)' : `${sig(mission.params.shield)} g/cm² water-equivalent`], ['Time aboard', null, dur(T.days) + ' ship time']];
   $('radbreak').innerHTML = rows.map(r => `<tr><td class="l">${r[0]}</td><td>${r[1] == null ? '' : sig(r[1]) + ' <em>mSv</em>'}</td><td class="l dim">${r[2]}</td></tr>`).join('');
-  $('radnote').textContent = 'Deep-space rate from Curiosity’s cruise to Mars (1.84 mSv/day), 1.36× beyond the heliopause, scaled for shielding. Rough estimate.';
+  $('radnote').textContent = 'Cosmic rays: Curiosity’s cruise rate (1.84 mSv/day), 1.36× beyond the heliopause, scaled for shielding. Interstellar gas: 0.2 hydrogen atoms per cm³ hitting the bow at cruise speed, stopped only if the forward shield is thicker than the proton range. Cancer chance 8% per Sv (BEIR VII). Rough estimates; relativistic boosting of cosmic rays is not modelled.';
 }
 
 // index and fraction of jd in the radiation grid
@@ -327,13 +344,14 @@ function legend(g, items, DW) {
 function axes(g, L, T, w, h, ymax, tmax, yrs, DH, xlabel) {
   const X = v => L + v / tmax * w, Y = v => T + h - v / ymax * h;
   g.strokeStyle = C.grid; g.lineWidth = 1; g.fillStyle = C.axis;
-  const step = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000].find(s => ymax / s <= 6) || 1e5;
-  for (let v = 0; v <= ymax; v += step) { g.beginPath(); g.moveTo(L, Y(v) + .5); g.lineTo(L + w, Y(v) + .5); g.stroke(); g.fillText(int(v), 4, Y(v) + 3); }
+  const e = Math.pow(10, Math.floor(Math.log10(Math.max(ymax, 10) / 6))), step = [1, 2, 5, 10].map(k => k * e).find(s => ymax / s <= 6);   // ~6 gridlines at any scale
+  const sv = ymax >= 1e4, lab = v => !sv ? int(v) : v / 1000 < 1e4 ? sig(v / 1000) : (v / 1000).toExponential(0).replace('e+', 'e');   // axis in Sv when huge
+  for (let v = 0; v <= ymax; v += step) { g.beginPath(); g.moveTo(L, Y(v) + .5); g.lineTo(L + w, Y(v) + .5); g.stroke(); g.fillText(lab(v), 4, Y(v) + 3); }
   const unit = yrs ? 365.25 : 1, xsStep = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 5000, 10000, 50000].map(s => s * (yrs ? 365.25 : 1)).concat(yrs ? [] : [30, 60, 90, 180, 365]).sort((a, b) => a - b).find(s => tmax / s <= 7) || tmax;
   for (let v = 0; v <= tmax + 1e-9; v += xsStep) { g.beginPath(); g.moveTo(X(v) + .5, T); g.lineTo(X(v) + .5, T + h); g.stroke(); g.fillText(int(v / unit), X(v) - 4, DH - 7); }
   g.textAlign = 'right'; g.fillText(xlabel, L + w - 4, T + h - 6); g.textAlign = 'left';
-  if (600 <= ymax) { g.strokeStyle = C.lim; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(L, Y(600)); g.lineTo(L + w, Y(600)); g.stroke(); g.setLineDash([]); g.fillStyle = C.lim; g.fillText('career limit 600', L + w - 100, Y(600) - 4); }
-  return [X, Y];
+  if (600 <= ymax && ymax < 6e4) { g.strokeStyle = C.lim; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(L, Y(600)); g.lineTo(L + w, Y(600)); g.stroke(); g.setLineDash([]); g.fillStyle = C.lim; g.fillText('career limit 600', L + w - 100, Y(600) - 4); }
+  return [X, Y, sv ? 'Sv' : 'mSv'];
 }
 function drawChart(jd) {
   const c = chartCtx(dc()); if (!c) return; const [g, DW, DH] = c;
@@ -344,8 +362,8 @@ function drawChart(jd) {
   const T = legend(g, items, DW) + 18, L = 44, B = 22, w = DW - L - 10, h = DH - T - B;
   const ymax = Math.max(50, A.band.hi[N - 1], run.tot[N - 1]) * 1.1;
   if (P.surf.some(Boolean)) for (const ph of mission.phases || []) if (ph.name.includes('stay')) { const a = L + (ph.jd0 - J[0]) / tmax * w, b = L + (ph.jd1 - J[0]) / tmax * w; g.fillStyle = 'rgba(156,207,122,.07)'; g.fillRect(a, T, b - a, h); g.fillStyle = '#6f8f5a'; g.fillText('on surface', a + 4, T + h - 5); }
-  const [X, Y] = axes(g, L, T, w, h, ymax, tmax, yrs, DH, yrs ? 'years →' : 'mission day →');
-  g.fillStyle = C.axis; g.fillText('mSv', 4, T - 6);
+  const [X, Y, unit] = axes(g, L, T, w, h, ymax, tmax, yrs, DH, yrs ? 'years →' : 'mission day →');
+  g.fillStyle = C.axis; g.fillText(unit, 4, T - 6);
   const now = jd - J[0], [kn, fn] = gridAt(J, jd), upto = kn + 1;
   const line = (arr, col, dash, lw = 1, n = N) => { g.strokeStyle = col; g.setLineDash(dash || []); g.lineWidth = lw; g.beginPath(); for (let k = 0; k < n; k++) k ? g.lineTo(X(xs[k]), Y(arr[k])) : g.moveTo(X(xs[k]), Y(arr[k])); g.stroke(); g.setLineDash([]); g.lineWidth = 1; };
   g.fillStyle = 'rgba(242,242,242,.07)'; g.beginPath(); for (let k = 0; k < N; k++) g.lineTo(X(xs[k]), Y(A.band.hi[k])); for (let k = N - 1; k >= 0; k--) g.lineTo(X(xs[k]), Y(A.band.lo[k])); g.closePath(); g.fill();
@@ -368,11 +386,11 @@ function drawChart(jd) {
 }
 function drawChartStar(g, DW, DH, jd) {
   const R = mission.radiation, xs = R.tau, tmax = xs[xs.length - 1] || 1, yrs = tmax > 800;
-  const T = legend(g, [['Total', C.tot], ['Bad case', C.p95, [3, 3]], ['Cosmic rays', C.gcr]], DW) + 18, L = 44, w = DW - L - 10, h = DH - T - 22;
-  const ymax = Math.max(50, ...R.tot_p95) * 1.12, [X, Y] = axes(g, L, T, w, h, ymax, tmax, yrs, DH, yrs ? 'ship years →' : 'ship days →');
-  g.fillStyle = C.axis; g.fillText('mSv', 4, T - 6);
+  const T = legend(g, [['Total', C.tot], ['Bad case', C.p95, [3, 3]], ['Cosmic rays', C.gcr], ...(R.totals.gas ? [['Interstellar gas', C.belt]] : [])], DW) + 18, L = 44, w = DW - L - 10, h = DH - T - 22;
+  const ymax = Math.max(50, ...R.tot_p95) * 1.12, [X, Y, unit] = axes(g, L, T, w, h, ymax, tmax, yrs, DH, yrs ? 'ship years →' : 'ship days →');
+  g.fillStyle = C.axis; g.fillText(unit, 4, T - 6);
   const line = (arr, col, dash, lw = 1) => { g.strokeStyle = col; g.setLineDash(dash || []); g.lineWidth = lw; g.beginPath(); arr.forEach((v, k) => k ? g.lineTo(X(xs[k]), Y(v)) : g.moveTo(X(xs[k]), Y(v))); g.stroke(); g.setLineDash([]); g.lineWidth = 1; };
-  line(R.gcr_cum, C.gcr); line(R.tot_p95, C.p95, [3, 3]); line(R.tot_mean, C.tot, null, 2);
+  line(R.gcr_cum, C.gcr); if (R.gas_cum && R.totals.gas) line(R.gas_cum, C.belt); line(R.tot_p95, C.p95, [3, 3]); line(R.tot_mean, C.tot, null, 2);
   const xn = X(Math.min(starAt(jd).tau, tmax)); g.strokeStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.moveTo(xn + .5, T); g.lineTo(xn + .5, T + h); g.stroke();
 }
 
@@ -459,6 +477,7 @@ const LVL = { HIGH: 0, MED: 1, LOW: 2, INFO: 3 };
 const lvl = (v, hi, med) => v > hi ? 'HIGH' : v > med ? 'MED' : 'LOW';
 // Radiation hazards, recomputed from the live model so they follow the shielding.
 function radHazards() {
+  if (isStar()) return starRadHazards();
   if (!A) return [];
   const S = shield, days = A.P.J[A.P.J.length - 1] - A.P.J[0], y = Rad.yr(A.P.J[0]), ss = Rad.ssn(y), ss2 = Rad.ssn(y + 1);
   const phase = ss > 110 ? 'near solar maximum' : ss < 40 ? 'near solar minimum' : ss2 < ss ? 'while the Sun is quietening' : 'while the Sun is getting more active';
@@ -479,11 +498,23 @@ function radHazards() {
   for (const [body, bs] of Object.entries(byBody)) {
     const d = bs.reduce((s, b) => s + b.dose, 0), e = body === 'earth';
     out.push({ id: 'rad-belt-' + body, cat: 'Radiation', title: `${e ? 'Van Allen belts' : cap(body) + ' radiation belts'}: ${bs.length} pass${bs.length > 1 ? 'es' : ''}, ${sig(d)} mSv`, value: d, unit: 'mSv', level: d > 100 ? 'HIGH' : d > 20 ? 'MED' : 'LOW', basis: 'quantitative', jd0: bs[0].jd, jd1: bs[0].jd, body,
-      note: e ? `Trapped protons and electrons 1,000–60,000 km up. A fast transit costs a few mSv${S.shelter ? ', less in the shelter' : ''}. Click to look at them.` : `${bs.map(b => esc(b.label)).join('; ')}. Jupiter's belts are the harshest radiation in the solar system; dose falls about 30× between a pass at 9 and at 30 Jupiter radii. Order-of-magnitude estimate. Click to look at them.`,
+      note: e ? `Trapped protons and electrons 1,000–60,000 km up. A fast transit costs a few mSv${S.shelter ? ', less in the shelter' : ''}.` : `${bs.map(b => esc(b.label)).join('; ')}. Jupiter's belts are the harshest radiation in the solar system; dose falls about 30× between a pass at 9 and at 30 Jupiter radii. Order-of-magnitude estimate.`,
       source: e ? 'Artemis I Orion dosimetry (Nature 2024)' : 'Ringwald 2000 dose rates at the Galilean moons; Juno radiation vault' });
   }
   if (A.surface) out.push({ id: 'rad-surf', cat: 'Radiation', title: `Mars surface: ${int(A.surface)} mSv during the stay`, value: A.surface, unit: 'mSv', level: lvl(A.surface, 300, 100), basis: 'quantitative',
     note: 'The planet blocks half the sky and the thin air stops some particles, so the surface rate is about a third of deep space. Burying the habitat under regolith cuts it further (MARS HABITAT buttons in the radiation panel).', source: 'MSL/RAD Gale crater (Hassler et al. 2014)' });
+  return out;
+}
+function starRadHazards() {
+  const R = mission.radiation; if (!R) return [];
+  const r = starRisk(mission), T = r.T, probe = !mission.summary.crew, who = probe ? 'A crew in this hull' : 'The crew';
+  const out = [{ id: 'rad-cancer', cat: 'Radiation', title: r.lethal ? `${who} would get a lethal dose` : `Cancer risk${probe ? ' (if crewed)' : ''}: ${Rad.cancerLabel(T.total_mean)}${T.total_mean > 10000 ? '' : ' chance'} from ${T.total_mean > 10000 ? sig(T.total_mean / 1000) + ' Sv' : int(T.total_mean) + ' mSv'}`,
+    value: r.lethal ? T.acute / 1000 : T.total_mean > 1e4 ? T.total_mean / 1000 : T.total_mean / 6, unit: r.lethal ? 'Sv in two days' : T.total_mean > 1e4 ? 'Sv' : '% of career limit', level: r.lethal || T.total_mean > 600 ? 'HIGH' : T.total_mean > 300 ? 'MED' : 'LOW', basis: 'quantitative',
+    note: r.lethal ? `At cruise speed the interstellar gas delivers about ${sig(T.peak_rate / 1000 / 24)} Sv per hour through a ${sig(mission.params.frontal)} g/cm² bow shield. Around 6 Sv in a couple of days is fatal even with treatment, so the crew would not survive to see cancer. A forward shield thicker than the proton range is the fix.`
+      : `${who} would take about ${int(T.total_mean)} mSv over ${dur(T.days)} of ship time (bad case ${int(T.total_p95)}). ${T.total_mean > 10000 ? 'That is far beyond anything the cancer risk models cover; heart, eye and brain damage would set in too.' : `At about 8% extra cancer chance per Sv that is ${fmtP(r.cancer)}, on top of the roughly 40% everyone has.`} NASA caps a career at 600 mSv.${T.total_mean > 600 ? ` This is ${(T.total_mean / 600).toFixed(1)}× that limit.` : ''}`,
+    source: 'NASA-STD-3001 Vol. 1 Rev C; BEIR VII Phase 2 (2006); Semyonov 2020 https://arxiv.org/abs/2004.10079' },
+  { id: 'rad-gcr', cat: 'Radiation', title: `Cosmic rays: ${T.gcr < 1e4 ? int(T.gcr) + ' mSv' : bigDose(T.gcr)} over ${durS(T.days)} aboard`, value: T.gcr / Math.max(1, T.days), unit: 'mSv/day average', level: T.gcr > 600 ? 'HIGH' : T.gcr > 300 ? 'MED' : 'LOW', basis: 'quantitative',
+    note: `Outside the Sun's protective bubble (past ~120 AU) cosmic rays are about 36% stronger. ${mission.params.absorbs ? 'The Astrophage fuel tanks wrap the crew and absorb almost everything.' : `Thick shielding helps only slowly: this ship carries ${sig(mission.params.shield)} g/cm².`} Time aboard is the main driver, so faster ships and time dilation both cut the dose.`, source: 'MSL/RAD cruise (Zeitlin et al. 2013, Science)' }];
   return out;
 }
 let hzList = [];
@@ -508,7 +539,7 @@ function renderHazards() {
     </article>`;
   }).join('');
   $('hzt').querySelectorAll('.hz').forEach(el => {
-    el.onclick = ev => { if (ev.target.closest('a')) return; el.classList.toggle('open'); const h = hzList[+el.dataset.k]; if (h.jd0 == null) return; const [a, b] = span(); setT((Math.max(a, h.jd0) - a) / (b - a)); if (h.body && el.classList.contains('open')) View.focusPlanet(h.body); };
+    el.onclick = ev => { if (ev.target.closest('a')) return; el.classList.toggle('open'); const h = hzList[+el.dataset.k]; if (h.jd0 == null) return; const [a, b] = span(); setT((Math.max(a, h.jd0) - a) / (b - a)); };
   });
 }
 
