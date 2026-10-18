@@ -547,30 +547,106 @@ function renderHazards() {
 }
 
 // ------------------------------------------------------------------ timeline
+// A swing under ~8% stays a thin line. Sunspots use a fixed 0–250 scale so a quiet Sun stays low.
+function seriesBounds(arr) {
+  let mn = Infinity, mx = -Infinity;
+  for (let i = 0; i < (arr ? arr.length : 0); i++) { const v = arr[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+  if (!isFinite(mn)) return { mn: 0, mx: 0, span: 0, flat: true };
+  const span = mx - mn;
+  const flat = span <= 1e-6 || Math.abs(mx) < 1e-9 || span / Math.abs(mx) < 0.08;
+  return { mn, mx, span, flat };
+}
+const betaText = v => { if (v < 5e-4) return '0'; const s = pct(v); return s.endsWith('%') ? s + ' c' : s; };
+function laneChip(g, text, x, y, color) {
+  g.font = '10px ' + MONO; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  const tw = Math.ceil(g.measureText(text).width);
+  g.fillStyle = 'rgba(5,5,5,.9)'; g.fillRect(x, y - 9, tw + 6, 12);
+  g.fillStyle = color; g.fillText(text, x + 3, y);
+  return x + tw + 8;
+}
+function paintSeries(g, xs, vals, b, y0, y1, w, stroke, fill, lw = 1.25) {
+  const n = vals.length, mid = (y0 + y1) / 2;
+  g.lineWidth = lw; g.lineJoin = 'round'; g.lineCap = 'round'; g.strokeStyle = stroke;
+  if (b.flat || b.span <= 1e-9) {
+    const y = Math.round(mid) + 0.5;
+    g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+    return;
+  }
+  const Y = v => y1 - 1.5 - ((v - b.mn) / b.span) * (y1 - y0 - 3);
+  g.beginPath(); g.moveTo(xs[0], y1 - 0.5);
+  for (let k = 0; k < n; k++) g.lineTo(xs[k], Y(vals[k]));
+  g.lineTo(xs[n - 1], y1 - 0.5); g.closePath();
+  g.fillStyle = fill; g.fill();
+  g.beginPath();
+  for (let k = 0; k < n; k++) { if (k) g.lineTo(xs[k], Y(vals[k])); else g.moveTo(xs[k], Y(vals[k])); }
+  g.stroke();
+}
+function tickStem(g, x, y0, y1, color, cap, lw = 1.25) {
+  const px = Math.round(x) + 0.5;
+  g.strokeStyle = color; g.lineWidth = lw; g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke();
+  if (!cap) return;
+  g.fillStyle = color; const hw = lw > 1.5 ? 3 : 2;
+  g.fillRect(Math.round(x) - hw, cap === 'top' ? y0 : y1 - 2, hw * 2 + 1, 2);
+}
 export function drawTimeline() {
-  if (!mission) return; const tlc = $('tlc'), r = tlc.getBoundingClientRect(); if (!r.width) return;
+  if (!mission) return; const tlc = $('tlc'), r = tlc.getBoundingClientRect(); if (!r.width || !r.height) return;
   const p = Math.min(devicePixelRatio, 2); tlc.width = r.width * p; tlc.height = r.height * p; const g = tlc.getContext('2d'); g.setTransform(p, 0, 0, p, 0, 0);
   const w = r.width, h = r.height, [t0, t1] = span(), X = jd => (jd - t0) / (t1 - t0) * w, jdNow = t0 + t * (t1 - t0); g.clearRect(0, 0, w, h);
-  const R = mission.radiation;
-  if (A) {   // sunspots along the mission (top) and the storms of this run so far (bottom)
-    const P = A.P; g.fillStyle = 'rgba(224,176,80,.28)'; g.beginPath(); g.moveTo(X(P.J[0]), h * .17);
-    for (let k = 0; k < P.n; k++) g.lineTo(X(P.J[k]), h * .17 - Math.min(1, Rad.ssn(P.Y[k]) / 250) * h * .15);
-    g.lineTo(X(P.J[P.n - 1]), h * .17); g.closePath(); g.fill();
-    for (const s of run.storms) if (s.jd <= jdNow) { const sz = { minor: .35, strong: .6, severe: .85, extreme: 1 }[Rad.stormClass(s.F)]; g.fillStyle = `rgba(224,176,80,${.5 + .5 * sz})`; g.fillRect(X(s.jd) - 1, h - h * .28 * sz, 2.5, h * .28 * sz); }
+  const R = mission.radiation, star = isStar(), lanes = [], SZ = { minor: .35, strong: .6, severe: .85, extreme: 1 };
+  if (A && A.P) {   // live model: sunspot cycle on a fixed 0–250 scale, and the storms rolled so far
+    const P = A.P, ssn = []; for (let k = 0; k < P.n; k++) ssn.push(Rad.ssn(P.Y[k]));
+    const raw = seriesBounds(ssn), scale = Math.max(250, raw.mx), mid = Math.round(h * 0.5);
+    lanes.push({ kind: 'sun', y0: 1, y1: mid - 2, b: raw.flat ? raw : { mn: 0, mx: scale, span: scale, flat: false }, vals: ssn, xs: P.J.map(X),
+      text: raw.span <= 1 ? `SUNSPOTS ${Math.round(raw.mx)}` : `SUNSPOTS ${Math.round(raw.mn)}–${Math.round(raw.mx)}` });
+    lanes.push({ kind: 'hits', y0: mid + 1, y1: h - 3 });
+  } else if (R && R.jd && R.jd.length > 1 && R.gcr_rate && R.beta) {
+    const gcrB = seriesBounds(R.gcr_rate), betaB = seriesBounds(R.beta), thin = gcrB.flat ? 16 : Math.round(h * 0.46), xs = R.jd.map(X);
+    lanes.push({ kind: 'gcr', y0: 1, y1: thin, b: gcrB, vals: R.gcr_rate, xs, text: (gcrB.span <= 1e-6 ? `GCR ${sig(gcrB.mx)} mSv/d` : `GCR ${sig(gcrB.mn)}–${sig(gcrB.mx)} mSv/d`) + (star ? ' · STORMS none' : '') });
+    lanes.push({ kind: 'speed', y0: thin + 3, y1: h - 3, b: betaB, vals: R.beta, xs, text: betaB.span <= 1e-6 ? `β ${betaText(betaB.mx)}` : `β ${betaText(betaB.mn)}–${betaText(betaB.mx)}` });
   }
-  if (R && isStar()) {   // speed profile as a filled curve
-    g.beginPath(); g.moveTo(0, h); R.jd.forEach((jd, k) => g.lineTo(X(jd), h - R.beta[k] / Math.max(1e-9, Math.max(...R.beta)) * h * .8)); g.lineTo(w, h); g.closePath();
-    g.fillStyle = 'rgba(240,240,240,.08)'; g.fill(); g.strokeStyle = 'rgba(240,240,240,.5)'; g.stroke();
+  const look = { sun: ['#e0b050', 'rgba(224,176,80,.5)', '#e0b050', 1.35], gcr: ['#d0d0d0', 'rgba(154,154,154,.7)', '#cfcfcf', 1.35], speed: ['#f2f2f2', 'rgba(242,242,242,.4)', '#f2f2f2', 1.6] };
+  if (lanes.length > 1) { g.strokeStyle = '#2e2e2e'; g.lineWidth = 1; const y = lanes[0].y1 + 1.5; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+  const chips = [];
+  for (const lane of lanes) {
+    if (lane.kind === 'hits') {
+      const hits = (run && run.storms || []).filter(s => s.jd <= jdNow), spanH = lane.y1 - lane.y0 - 3;
+      if (!hits.length) { g.strokeStyle = 'rgba(224,176,80,.45)'; g.lineWidth = 1; const midY = Math.round((lane.y0 + lane.y1) / 2) + .5; g.beginPath(); g.moveTo(0, midY); g.lineTo(w, midY); g.stroke(); }
+      for (const s of hits) { const sz = SZ[Rad.stormClass(s.F)] || .4, y1 = lane.y1 - 1; tickStem(g, X(s.jd), y1 - spanH * sz, y1, '#e0b050', 'top'); }
+      lane.text = hits.length ? `STORMS ${hits.length} this run` : 'STORMS none yet'; lane.ink = '#e0b050'; lane.hits = hits;
+    } else {
+      const [stroke, fill, ink, lw] = look[lane.kind];
+      paintSeries(g, lane.xs, lane.vals, lane.b, lane.y0, lane.y1, w, stroke, fill, lw); lane.ink = ink;
+    }
+    chips.push(laneChip(g, lane.text, 3, Math.min(lane.y1 - 2, lane.y0 + 12), lane.ink));
   }
-  for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1), stay = ph.name.includes('stay') || ph.name === 'cruise';
-    g.strokeStyle = stay ? '#6f8f5a' : '#3a3a3a'; g.strokeRect(a + .5, h * .2 + .5, Math.max(1, b - a - 1), h * .46);
-    g.fillStyle = stay ? 'rgba(156,207,122,.10)' : 'rgba(0,0,0,0)'; g.fillRect(a, h * .2, b - a, h * .46); }
-  for (const hz of hzList.length ? hzList : mission.risk || []) if (hz.jd0 != null && !isStar()) { const x0 = X(Math.max(t0, hz.jd0)), x1 = Math.max(x0 + 2, X(Math.min(t1, hz.jd1 ?? hz.jd0)));
-    g.fillStyle = hz.level === 'HIGH' ? 'rgba(224,96,90,.55)' : 'rgba(224,176,80,.4)'; g.fillRect(x0, h * .24, x1 - x0, h * .38); }
+  const nameFloor = Math.max(8, ...chips, 0);
   g.font = '10px ' + MONO;
-  for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1); if (b - a < 40) continue; g.fillStyle = ph.name.includes('stay') ? '#9ccf7a' : '#8a8a8a'; g.fillText(cap(ph.name), a + 5, h * .2 + 13); }
-  if (A) { g.fillStyle = '#7a6a48'; g.textAlign = 'right'; g.fillText('sunspots', w - 4, 9); g.fillText(`storms this run: ${run.storms.filter(s => s.jd <= jdNow).length}`, w - 4, h - 3); g.textAlign = 'left'; }
-  $('ticks').innerHTML = mission.events.map(e => `<div class="tick" title="${esc((e.date || '') + ' ' + e.label)}" style="left:${(e.jd - t0) / (t1 - t0) * 100}%;background:${EVC[e.hazard ? 'hazard' : e.type]}"></div>`).join('');
+  for (const ph of mission.phases || []) {
+    const a = X(ph.jd0), b = X(ph.jd1), stay = /stay|surface/.test(ph.name);
+    g.fillStyle = stay ? '#9ccf7a' : 'rgba(242,242,242,.28)'; g.fillRect(a, h - 2, Math.max(1, b - a), 2);
+    const name = ph.name.toUpperCase(), tw = g.measureText(name).width;
+    if (b - a < tw + 10) continue;
+    const host = lanes[lanes.length - 1]; const y = host ? Math.min(host.y1 - 2, host.y0 + 12) : 12;
+    let x = a + 4; if (x < nameFloor) x = nameFloor; if (x + tw + 8 > b) continue;
+    laneChip(g, name, x, y, stay ? '#9ccf7a' : '#8a8a8a');
+  }
+  const evTicks = [];
+  for (const e of mission.events) {
+    const x = X(e.jd), col = EVC[e.hazard ? 'hazard' : e.type] || '#f2f2f2', kind = e.hazard ? 'hz' : e.type;
+    const speedLane = lanes.find(l => l.kind === 'speed');
+    if (kind === 'flyby') tickStem(g, x, 0, 11, col, 'top');
+    else if (kind === 'dsm' && speedLane) tickStem(g, x, speedLane.y0, speedLane.y1, col, 'top');
+    else if (kind === 'dsm') tickStem(g, x, 0, 6, col, 'top');
+    else tickStem(g, x, 0, kind === 'hz' ? 13 : 9, col, 'top');
+    evTicks.push(`<div class="tick" title="${esc((e.date || '') + ' ' + e.label)}" style="left:${(e.jd - t0) / (t1 - t0) * 100}%"></div>`);
+  }
+  for (const b of (A && A.belts) || (R && R.belts) || []) {
+    tickStem(g, X(b.jd), h - 15, h - 2, '#e0605a', 'bottom', 2);
+    evTicks.push(`<div class="tick" title="${esc('Radiation belt · ' + (b.label || b.body || ''))}" style="left:${(b.jd - t0) / (t1 - t0) * 100}%"></div>`);
+  }
+  const hitsLane = lanes.find(l => l.kind === 'hits');
+  if (hitsLane) for (const s of hitsLane.hits || []) evTicks.push(`<div class="tick" title="${esc('Solar storm (' + Rad.stormClass(s.F) + ') +' + sig(s.dose) + ' mSv')}" style="left:${(s.jd - t0) / (t1 - t0) * 100}%"></div>`);
+  $('ticks').innerHTML = evTicks.join('');
   const y0 = jdYear(t0), y1 = jdYear(t1), spanY = y1 - y0;
   const step = [1 / 12, 1 / 6, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000].find(s => spanY / s <= Math.max(3, Math.min(10, Math.floor(w / 75)))) || 1e6;
   const out = []; for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) out.push(y);
