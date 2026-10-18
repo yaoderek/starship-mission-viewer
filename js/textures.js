@@ -890,3 +890,75 @@ export function atmosphereMaterial(colorHex, intensity = 1) {
     side: THREE.FrontSide,
   });
 }
+
+/**
+ * Soft outer atmospheric halo. A wide, low-power Fresnel shell (larger than the
+ * tight limb in atmosphereMaterial) so the glow feathers out instead of reading
+ * as a hard ring. One shared shader, no blur pass. `sunPos` is world space.
+ *
+ * Bodies with real atmospheres only. Mercury and the Moon are not in this table;
+ * Titan is not drawn as its own mesh.
+ * shell = outer halo radius in planet radii. rim/halo are additive strengths.
+ */
+export const ATMOSPHERES = {
+  venus:   { color: '#f3e2b0', rim: 1.05, halo: 0.72, shell: 1.34 }, // thick CO2 haze, pale yellow
+  earth:   { color: '#6eb6ff', rim: 1.25, halo: 0.62, shell: 1.24 }, // Rayleigh blue
+  mars:    { color: '#e4b48a', rim: 0.48, halo: 0.26, shell: 1.12 }, // thin, faint butterscotch
+  jupiter: { color: '#e6c99a', rim: 0.62, halo: 0.42, shell: 1.18 }, // cream / ammonia clouds
+  saturn:  { color: '#f0d9a8', rim: 0.58, halo: 0.36, shell: 1.14 }, // pale gold, stays inside the rings
+  uranus:  { color: '#b7f3f0', rim: 0.88, halo: 0.52, shell: 1.22 }, // methane cyan
+  neptune: { color: '#6e90ff', rim: 0.98, halo: 0.58, shell: 1.26 }, // deep azure
+};
+
+export function atmosphereHaloMaterial(colorHex, intensity = 0.4) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      glowColor: { value: new THREE.Color(colorHex) },
+      intensity: { value: intensity },
+      sunPos: { value: new THREE.Vector3(0, 0, 0) },
+    },
+    vertexShader: /* glsl */`
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPos;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * wp;
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader: /* glsl */`
+      uniform vec3 glowColor;
+      uniform float intensity;
+      uniform vec3 sunPos;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPos;
+      #include <common>
+      #include <logdepthbuf_pars_fragment>
+      void main() {
+        #include <logdepthbuf_fragment>
+        vec3 N = normalize(vWorldNormal);
+        vec3 V = normalize(cameraPosition - vWorldPos);
+        float ndv = clamp(dot(N, V), 0.0, 1.0);
+        // Broad limb with a long tail, killed at the shell's geometric edge so
+        // the halo blurs out instead of ending in a circle.
+        float limb = pow(1.0 - ndv, 1.25);
+        float feather = smoothstep(0.0, 0.7, ndv);
+        float haze = pow(1.0 - ndv, 2.2) * smoothstep(0.0, 0.42, ndv);
+        float glow = limb * feather * 0.8 + haze * 0.55;
+        vec3 L = normalize(sunPos - vWorldPos);
+        float ndl = dot(N, L);
+        float day = smoothstep(-0.35, 0.45, ndl);
+        float fwd = pow(max(dot(-V, L), 0.0), 3.5) * smoothstep(-0.15, 0.25, -ndl);
+        float a = glow * intensity * (0.28 + 0.72 * day + 0.45 * fwd);
+        gl_FragColor = vec4(glowColor, clamp(a, 0.0, 0.8));
+        #include <colorspace_fragment>
+      }`,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.FrontSide,
+  });
+}
