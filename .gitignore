@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+planner/output*/
+planner/data/*.bsp
+planner/data/*.npz

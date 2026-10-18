@@ -2,11 +2,13 @@
 import * as View from './scene.js';
 import * as Dash from './dashboard.js';
 import { initLayout } from './layout.js';
-import { initHero, renderHero, setHero, initBuilder, openBuilder, closeBuilder, loadPlanetFile, renderBuilderHolo, B } from './start.js';
+import { initHero, renderHero, initBuilder, openBuilder, loadPlanetFile, renderBuilderHolo } from './start.js';
 import { PRESETS, SOLAR_VEHICLES, STAR_VEHICLES, planetById, starById } from './catalog.js';
 import { buildInterstellar } from './interstellar.js';
+import { buildHistoric, historicById } from './historic.js';
 import { resizeAll } from './vehicle.js';
 import { $, esc } from './fmt.js';
+import { loadRadModel } from './radiation.js';
 
 let current = null, sceneReady = null, view = 'start';
 
@@ -42,30 +44,35 @@ async function route() {
 
 function showStart() {
   view = 'start'; $('app').hidden = true; $('start').hidden = false; Dash.togglePlay(false);
-  if (!$('builder').hidden) return;
-  closeBuilder(); setHero('mars');
+  openBuilder();
 }
 
 async function ensureScene() {
   if (!sceneReady) sceneReady = (async () => {
     $('app').hidden = false;
     await View.initScene({ canvas: $('c'), host: $('scene'), labelLayer: $('labels'), tipEl: $('tip'), onPick: e => Dash.jumpTo(e) });
-    initLayout(); Dash.bindTimeline(); Dash.bindRadControls(); Dash.bindVehicleView();
+    initLayout(); Dash.bindTimeline();
+    // shielding changed on the dashboard: keep it in the link and in what EDIT hands back to the builder
+    Dash.setShieldHandler(s => { if (!current) return; Object.assign(current.params, s); history.replaceState(null, '', location.pathname + location.search + cfgToHash(current)); }); Dash.bindRadControls(); Dash.bindVehicleView();
     document.querySelectorAll('#scale button').forEach(b => b.onclick = () => { const v = b.dataset.s === 'true'; View.setScale(v); document.querySelectorAll('#scale button').forEach(x => x.classList.toggle('on', x === b)); });
     $('rel').onchange = e => View.setRelativistic(e.target.checked);
-    $('home').onclick = () => { location.hash = ''; };
-    $('edit').onclick = () => { location.hash = ''; openBuilder(current); $('app').hidden = true; $('start').hidden = false; view = 'start'; };
+    $('home').onclick = () => { location.hash = ''; };   // back to the builder
+    $('edit').onclick = () => { openBuilder(current); location.hash = ''; };
   })();
   return sceneReady;
 }
 
 async function fly(cfg) {
-  loading(true, cfg.kind === 'star' ? 'PLOTTING COURSE' : 'LOADING EPHEMERIS');
+  loading(true, cfg.kind === 'star' ? 'PLOTTING COURSE' : cfg.kind === 'historic' ? 'RECONSTRUCTING TRAJECTORY' : 'LOADING EPHEMERIS');
   $('start').hidden = true; $('app').hidden = false; view = 'app';
   await ensureScene();
   const isPreset = !!cfg.preset;
   let data, title, sub;
-  if (cfg.kind === 'star') {
+  if (cfg.kind === 'historic') {
+    data = buildHistoric(); const h = historicById(cfg.dest), i = Math.max(0, data.missions.findIndex(m => m.historicId === cfg.dest));
+    data.target = data.missions[i].target; cfg = { ...cfg, mission: i };
+    title = h.name; sub = `${h.launcherName} · ${h.year} · reconstructed from real encounter dates`;
+  } else if (cfg.kind === 'star') {
     const s = starById(cfg.dest), v = STAR_VEHICLES.find(x => x.id === cfg.vehicle);
     data = buildInterstellar(s, v.id, cfg.params, cfg.year);
     title = isPreset ? cfg.title : `${v.name} to ${s.name}`;
@@ -73,7 +80,8 @@ async function fly(cfg) {
   } else {
     const p = planetById(cfg.dest), v = SOLAR_VEHICLES.find(x => x.id === cfg.vehicle);
     data = await loadPlanetFile(cfg.dest);
-    resizeAll(data, { ...v.p, ...cfg.params }); data.vehicleId = v.id;
+    const vp = { ...v.p, ...cfg.params }; resizeAll(data, vp); data.vehicleId = v.id;
+    Dash.setShield({ wall: vp.wall, shelter: vp.shelter });
     title = isPreset ? cfg.title : `${v.name} to ${p.name}`;
     sub = `Earth → ${p.name} · ${data.missions.length} trajectories · ${v.name}`;
   }
@@ -85,15 +93,6 @@ async function fly(cfg) {
 
 // ------------------------------------------------------------------ start screen wiring
 function bindStart() {
-  document.querySelectorAll('.card').forEach(c => {
-    c.addEventListener('pointerenter', () => setHero(c.dataset.hero));
-    c.addEventListener('focus', () => setHero(c.dataset.hero));
-    c.onclick = () => {
-      if (c.dataset.preset) location.hash = cfgToHash({ preset: c.dataset.preset });
-      else openBuilder();
-    };
-  });
-  $('bback').onclick = () => { closeBuilder(); setHero('mars'); };
   initBuilder(cfg => { location.hash = cfgToHash(cfg); });
 }
 
@@ -123,7 +122,7 @@ function legacyAfter() {
 
 async function boot() {
   bindStart();
-  await initHero();
+  await Promise.all([initHero(), loadRadModel()]);
   legacy();
   addEventListener('hashchange', route);
   await route();

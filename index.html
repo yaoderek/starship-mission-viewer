@@ -12,53 +12,35 @@
   <div class="start-inner">
     <header class="brand"><b>STARSHIP MISSION VIEWER</b><span>FDO / RAD CONSOLE · PATCHED-CONIC · RELATIVISTIC ROCKET</span></header>
 
-    <section id="choose">
-      <h1><span class="pr">&gt;</span> SELECT MISSION<span class="cur"></span></h1>
-      <p class="lede">Each one is a working model: trajectories, propellant and crew radiation are computed, so you can change the inputs and see what breaks.</p>
-      <div class="cards">
-        <button class="card" data-preset="hailmary" data-hero="star">
-          <span class="kicker">01 · INTERSTELLAR · FROM THE NOVEL</span>
-          <h2>Project Hail Mary</h2>
-          <p>The novel’s ship: three crew in comas, 2,000 tonnes of Astrophage, 1.5 g all the way to Tau Ceti. The flight times hold up. The fuel doesn’t.</p>
-          <dl><div><dt>Distance</dt><dd>11.9 ly</dd></div><div><dt>Ship time</dt><dd>3.9 yr</dd></div><div><dt>Top speed</dt><dd>99.5% c</dd></div></dl>
-          <span class="go">FLY IT →</span>
-        </button>
-        <button class="card" data-preset="mars" data-hero="mars">
-          <span class="kicker">02 · PLANETARY · 2033 WINDOW</span>
-          <h2>Starship to Mars</h2>
-          <p>Refuel in Earth orbit, coast for six months, aerobrake into Mars. Thirteen launch windows and mission types to compare, from one-way to a surface stay.</p>
-          <dl><div><dt>Transit</dt><dd>174 d</dd></div><div><dt>Tankers</dt><dd>4</dd></div><div><dt>Crew dose</dt><dd>213 mSv</dd></div></dl>
-          <span class="go">FLY IT →</span>
-        </button>
-        <button class="card build" data-go="builder" data-hero="earth">
-          <span class="kicker">03 · SANDBOX</span>
-          <h2>Build your own</h2>
-          <p>Any planet or a nearby star, with Starship, nuclear thermal, fusion probes, a laser sail or antimatter. Every mass and speed is editable.</p>
-          <dl><div><dt>Destinations</dt><dd>18</dd></div><div><dt>Vehicles</dt><dd>13</dd></div></dl>
-          <span class="go">OPEN BUILDER →</span>
-        </button>
-      </div>
-    </section>
-
-    <section id="builder" hidden>
-      <div class="bhead"><button class="ghost" id="bback">← BACK</button><h1><span class="pr">&gt;</span> BUILD MISSION<span class="cur"></span></h1></div>
-      <div class="bgrid">
-        <div class="bcol">
-          <h3><span>01</span>Destination</h3>
-          <div class="grp">Planets</div><div id="dPlanets" class="chips"></div>
-          <div class="grp">Nearby stars</div><div id="dStars" class="chips"></div>
-          <p id="destBlurb" class="blurb"></p>
+    <section id="builder">
+      <div class="bhead"><h1><span class="pr">&gt;</span> BUILD MISSION<span class="cur"></span></h1></div>
+      <div class="blayout">
+        <div class="rail">
+          <div class="bcol" id="colDest">
+            <h3><span>01</span>Destination</h3>
+            <div class="grp">Planets</div><div id="dPlanets" class="chips"></div>
+            <div class="grp">Nearby stars</div><div id="dStars" class="chips"></div>
+            <div class="grp">Historical missions</div><div id="dHist" class="chips hist"></div>
+            <p id="destBlurb" class="blurb"></p>
+          </div>
+          <div class="bcol grow" id="colParams">
+            <h3><span>03</span>Parameters</h3>
+            <div id="params" class="params"></div>
+            <div id="estimate" class="estimate"></div>
+            <button id="launch" class="primary">LAUNCH MISSION →</button>
+          </div>
         </div>
-        <div class="bcol">
-          <h3><span>02</span>Vehicle</h3>
-          <div id="bholowrap" class="holowrap builder"><canvas id="bholo"></canvas><div class="holo-hud"><b id="bholoname">—</b><span id="bhololen"></span></div></div>
-          <div id="vehList" class="vlist"></div>
-        </div>
-        <div class="bcol">
-          <h3><span>03</span>Parameters</h3>
-          <div id="params" class="params"></div>
-          <div id="estimate" class="estimate"></div>
-          <button id="launch" class="primary">LAUNCH MISSION →</button>
+        <div class="bcenter"></div>
+        <div class="rail">
+          <div class="bcol grow" id="colVeh">
+            <h3><span>02</span>Vehicle</h3>
+            <div id="bholowrap" class="holowrap builder"><canvas id="bholo"></canvas><div class="holo-hud"><b id="bholoname">—</b><span id="bhololen"></span></div><div class="holo-credit"></div></div>
+            <div id="vehList" class="vlist"></div>
+          </div>
+          <div class="bcol" id="colPrev">
+            <h3><span>04</span>Mission preview</h3>
+            <div class="schemwrap"><canvas id="schem"></canvas></div>
+          </div>
         </div>
       </div>
     </section>
@@ -68,7 +50,7 @@
 <!-- ============================================================ dashboard -->
 <div id="app" hidden>
   <header id="bar">
-    <button id="home" class="ghost">← MISSIONS</button>
+    <button id="home" class="ghost">← BUILDER</button>
     <div class="title"><b id="mtitle">—</b><span id="msub"></span></div>
     <button id="edit" class="ghost">EDIT</button>
     <div class="spacer"></div>
@@ -86,16 +68,16 @@
   <main id="grid">
     <div class="stack" id="colL">
       <section class="panel" id="pCmp" data-grow="5">
-        <div class="ph"><h2 id="cmpTitle">Mission comparison</h2><span class="hint" id="cmpHint"></span><button class="max" title="Expand">⤢</button></div>
+        <div class="ph"><h2 id="cmpTitle">Mission comparison</h2><span class="hint" id="cmpHint"></span></div>
         <div id="modes" class="seg modes"></div>
         <div class="pb tbl-wrap"><table id="cmp" class="grid"></table></div>
       </section>
       <section class="panel" id="pEvt" data-grow="3">
-        <div class="ph"><h2>Selected · event sequence</h2><span class="hint" id="selname"></span><button class="max" title="Expand">⤢</button></div>
+        <div class="ph"><h2>Selected · event sequence</h2><span class="hint" id="selname"></span></div>
         <div class="pb tbl-wrap"><table id="evt" class="grid"></table></div>
       </section>
       <section class="panel" id="pBud" data-grow="4">
-        <div class="ph"><h2 id="budtitle">Δv budget / vehicle</h2><button class="max" title="Expand">⤢</button></div>
+        <div class="ph"><h2 id="budtitle">Δv budget / vehicle</h2></div>
         <div class="pb scroll">
           <div id="budget" class="kv"></div>
           <div id="isruwrap"><div class="sub-h">ISRU · REQUIRED POWER vs PRODUCTION TIME <span class="dim">Sabatier + electrolysis, 13.6 kWh/kg (11.2–20.2)</span></div><canvas id="isruchart"></canvas></div>
@@ -110,29 +92,34 @@
         <div id="scene"><canvas id="c"></canvas><div id="labels"></div><div id="tip"></div></div>
         <div class="legend"><span><i class="ln fl"></i>FLOWN</span><span><i class="ln pl"></i>PLANNED</span><span><i class="sq la"></i>LAUNCH/ARR</span><span class="solar-only"><i class="sq fb"></i>FLYBY</span><span><i class="sq ds"></i>BURN</span><span><i class="sq hzd"></i>HAZARD</span></div>
         <div class="viewhint">DRAG ORBIT · SCROLL ZOOM · DBL-CLICK RESET</div>
-        <button class="max" title="Expand">⤢</button>
       </section>
       <section class="panel" id="pHz" data-grow="3">
-        <div class="ph"><h2>Hazards · risk summary</h2><span id="hzcount" class="hzcount"></span><span class="hint">click card to expand · jumps timeline</span><button class="max" title="Expand">⤢</button></div>
+        <div class="ph"><h2>Hazards · risk summary</h2><span id="hzcount" class="hzcount"></span><span class="hint">click card to expand · jumps timeline</span></div>
         <div class="pb scroll"><div id="hzt" class="hzgrid"></div></div>
       </section>
     </div>
     <div class="gutter colg" data-side="R"></div>
     <div class="stack" id="colR">
-      <section class="panel" id="pRad" data-grow="6">
-        <div class="ph"><h2>Crew radiation · effective dose (mSv)</h2><label class="tog" id="shelterwrap"><input type="checkbox" id="shelter" checked> STORM SHELTER <span id="shval" class="dim"></span></label><button class="max" title="Expand">⤢</button></div>
+      <section class="panel" id="pRad" data-grow="8">
+        <div class="ph"><h2>Crew radiation · effective dose (mSv)</h2><button id="reroll" class="ghost small" title="Roll a new random storm history for this mission">↻ REROLL STORMS</button></div>
         <div class="pb scroll">
+          <div id="risk" class="risk"></div>
+          <div id="shieldctl">
+            <div id="wallseg" class="seg reg"><span class="k">CABIN WALL</span><button data-w="0">+0</button><button data-w="5">+5</button><button data-w="10">+10</button><button data-w="20">+20</button><button data-w="40">+40</button><span class="u">g/cm²</span></div>
+            <div id="shseg" class="seg reg"><span class="k">STORM SHELTER</span><button data-s="0">NONE</button><button data-s="10">10</button><button data-s="20">20</button><button data-s="40">40</button><span class="u">g/cm²</span><span id="shmass" class="mass"></span></div>
+          </div>
           <div id="regseg" class="seg reg"><span class="k">MARS HABITAT</span><button data-r="0">STARSHIP HULL</button><button data-r="0.5">0.5 m REGOLITH</button><button data-r="1">1.0 m REGOLITH</button></div>
           <div class="chartwrap"><canvas id="dosechart"></canvas></div>
           <div id="radnow" class="kv now"></div>
+          <div id="solarwrap"><div class="sub-h">SOLAR CYCLE <span class="dim">sunspots drive storms; a quiet Sun lets more cosmic rays in</span></div><div class="chartwrap solar"><canvas id="solarchart"></canvas></div></div>
           <div id="limits" class="limits"></div>
           <table id="radbreak" class="mini"></table>
           <p id="radnote" class="note"></p>
         </div>
       </section>
       <section class="panel" id="pCab" data-grow="4">
-        <div class="ph"><div id="vseg" class="seg mini"><button data-v="holo" class="on">VEHICLE</button><button data-v="cabin">CREW CABIN</button></div><span class="hint" id="cutnote"></span><button class="max" title="Expand">⤢</button></div>
-        <div id="holowrap" class="holowrap"><canvas id="holo"></canvas><div class="holo-hud"><b id="holoname">—</b><span id="hololen"></span><span id="holothr" class="thr"></span></div></div>
+        <div class="ph"><div id="vseg" class="seg mini"><button data-v="holo" class="on">VEHICLE</button><button data-v="cabin">CREW CABIN</button></div><span class="hint" id="cutnote"></span></div>
+        <div id="holowrap" class="holowrap"><canvas id="holo"></canvas><div class="holo-hud"><b id="holoname">—</b><span id="hololen"></span><span id="holothr" class="thr"></span></div><div id="holoseq" class="holo-seq"></div><button id="ascbtn" class="ghost small holo-asc" hidden>▶ ASCENT</button><div class="holo-credit"></div></div>
         <div id="cutwrap" hidden><canvas id="cut"></canvas><div id="cutleg"></div></div>
       </section>
     </div>

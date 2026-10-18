@@ -1,0 +1,433 @@
+     The NASA Orbital Debris Engineering Model 3.1: Development, Verification,
+                                 and Validation
+
+        M. Matney(1), A. Manis(2), P. Anz-Meador(3), D. Gates(3), J. Seago(4), A. Vavrin(5), and Y.-L. Xu(6)
+       (1)
+             NASA Johnson Space Center, Mail Code XI5-9E, 2101 NASA Parkway, Houston, TX 77058, USA,
+                                                mark.matney-1@nasa.gov
+        (2)
+            HX5 – Jacobs JETS Contract, NASA Johnson Space Center, Mail Code XI5-9E, 2101 NASA Parkway,
+                                                Houston, TX 77058, USA
+    (3)
+        Jacobs, NASA Johnson Space Center, Mail Code XI5-9E, 2101 NASA Parkway, Houston, TX 77058, USA
+        (4)
+            ERC – Jacobs JETS Contract, NASA Johnson Space Center, Mail Code XI5-9E, 2101 NASA Parkway,
+                                                Houston, TX 77058, USA
+             (5)
+                 GeoControl Systems – Jacobs JETS Contract, NASA Johnson Space Center, Mail Code JE07A,
+                                     2101 NASA Parkway, Houston, TX 77058, USA
+      (6)
+          University of Texas at El Paso – Jacobs JETS Contract, NASA Johnson Space Center, Mail Code JE07A,
+                                     2101 NASA Parkway, Houston, TX 77058, USA
+
+                                                     ABSTRACT
+The NASA Orbital Debris Program Office has developed the Orbital Debris Engineering Model (ORDEM)
+primarily as a tool for spacecraft designers and other users to understand the long-term risk of collisions with orbital
+debris. The newest version, ORDEM 3.1, incorporates the latest and highest fidelity datasets available to build and
+validate representative orbital debris populations encompassing low Earth orbit (LEO) to geosynchronous orbit
+(GEO) altitudes for the years 2016-2050.
+ORDEM 3.1 models fluxes for object sizes > 10 μm within or transiting LEO and > 10 cm in GEO. The
+deterministic portion of the populations in ORDEM 3.1 is based on the U.S. Space Surveillance Network (SSN)
+catalog, which provides coverage down to approximately 10 cm in LEO and 1 m in GEO. Observational datasets
+from radar, in situ, and optical sources provide a foundation from which the model populations are statistically
+extrapolated to smaller sizes and orbit regions that are not well-covered by the SSN catalog, yet may pose the
+greatest threat to operational spacecraft. Objects in LEO ranging from approximately 5 mm to 10 cm are modeled
+using observational data from ground-based radar, namely the Haystack Ultrawideband Satellite Imaging Radar
+(HUSIR – formerly known as Haystack). The LEO population smaller than approximately 3 mm in size is
+characterized based on a reanalysis of in situ data from impacts to the windows and radiators of the U.S. Space
+Transportation System orbiter vehicle, i.e., the Space Shuttle. Data from impacts on the Hubble Space Telescope are
+also used to validate the sub-millimeter model populations in LEO. Debris in GEO with sizes ranging from 10 cm to
+1 m is modeled using optical measurement data from the Michigan Orbital DEbris Survey Telescope (MODEST).
+Specific, major debris-producing events, including the Fengyun-1C, Iridium 33, and Cosmos 2251 debris clouds,
+and unique populations, such as sodium-potassium droplets, have been re-examined and are modeled and added to
+the ORDEM environment separately. The debris environment greater than 1 mm is forecast using NASA’s LEO-to-
+GEO ENvironment Debris model (LEGEND). Future explosions of intact objects and collisions involving objects
+greater than 10 cm are assessed statistically, and the NASA Standard Satellite Breakup Model is used to generate
+fragments from these events. Fragments smaller than 10 cm are further differentiated based on material density
+categories, i.e., high-, medium-, and low-density, to better characterize the potential debris risk posed to spacecraft.
+The future projection of the sub-millimeter environment is computed using a special small-particle degradation
+model where small particles are created from intact spacecraft and rocket bodies.
+This work discusses the development, features, and capabilities of the ORDEM 3.1 model; the new data and new
+data analyses used to build the model populations; and sample verification and validation results.
+
+1    INTRODUCTION
+The NASA Orbital Debris Program Office (ODPO) began development of the Orbital Debris Engineering Model
+(ORDEM) in the mid-1980s in support of the Space Station Program Office [1]. The ORDEM software currently
+serves as the primary tool to provide a timely, validated model of the human-made orbital debris environment. It
+facilitates modeling assessments by spacecraft owner/operators, as well as for ground-based observation planning.
+Initial manifestations of the model included analytical solutions representing the debris environment [2]. The first
+computer-based version of ORDEM was released in 1996 as ORDEM96 [3] and pioneered the use of debris
+population ensembles characterized by altitude, eccentricity, inclination, and size. ORDEM2000 replaced the curve
+fitting approach with a finite element representation of the debris environment [4]. ORDEM 3.0 [5] represented a
+significant upgrade in terms of model features and capabilities. It extended the model to the geosynchronous orbit
+(GEO) region (up to 40,000 km), which enabled analysis of more varied orbits – such as geosynchronous transfer
+orbits (GTO) and other highly-elliptical spacecraft orbits – and sensor orientations. Additional upgrades included
+expansion of observation program datasets in underrepresented regions and the addition of uncertainties on the
+reported orbital debris flux. Most significantly, ORDEM 3.0 included a distribution in material density of orbital
+debris fluxes [6].
+The orbital debris environment is dynamic and must be periodically updated. As newer datasets become available,
+they provide more information on the evolution of the orbital debris environment. In addition, newly developed data
+analysis techniques can be applied to both new and legacy data to improve the assessment of orbital debris
+populations. The newest version of the model, ORDEM 3.1, includes the same capabilities as ORDEM 3.0 and
+incorporates the newest and highest fidelity datasets available to NASA for both constructing and validating the
+modeled orbital debris populations. New approaches to analyzing the available data have also been implemented for
+the large breakup clouds (Fengyun-1C, Iridium 33, and Cosmos 2251), in situ impact data, and the GEO population.
+ORDEM 3.1 is in the final stages of review and represents NASA’s best estimate of the current and near future
+orbital debris environment.
+This paper discusses ORDEM 3.1 features in Section 2, datasets and models used for building the model in
+Section 3, and sample model validation results in Section 4. A summary is given in Section 5.
+
+2    ORDEM 3.1 FEATURES
+The fundamental capability of ORDEM is providing fluxes (number per m2 per year) of debris for a given year. The
+software includes “spacecraft mode” as well as “telescope/radar mode” settings. The spacecraft mode is useful to
+spacecraft designers, owners, and operators for assessing the debris flux in a particular spacecraft orbit. The
+telescope/radar mode setting supports debris researchers and those planning observation campaigns or sensor
+programs given a particular sensor location and pointing direction. In spacecraft mode, fluxes are output in terms of
+local azimuth, elevation, and relative velocity in the frame of the spacecraft, whereas for telescope/radar mode,
+fluxes are output in terms of altitude in the field of view of a ground-based instrument. Fluxes are calculated as a
+function of cumulative size, meaning the fluxes are presented for a given size and larger. This is based on the risk
+assessment view that if an impact from a debris particle of a given size will critically damage a spacecraft
+component, so will all larger sizes of debris. Eleven half-decade size thresholds, or fiducial points, are considered in
+calculating and presenting the cumulative fluxes: 10 µm, 31.6 µm, 100 µm, 316 µm, 1 mm, 3.16 mm, 1 cm,
+3.16 cm, 10 cm, 31.6 cm, and 1 m.
+Fluxes are modeled for objects greater than 10 µm in low Earth orbit (LEO, altitudes below 2000 km) and greater
+than 10 cm in GEO. Note that while GTO and GEO orbits physically overlap, the dynamics (including perturbation
+forces and impact velocities) as well as the physical size and structure of satellites within the GEO region are
+unique. Thus, ORDEM provides debris fluxes in GEO only for sizes of 10 cm and larger. Any fluxes below 10 cm at
+altitudes above LEO are due solely to high-eccentricity debris sources.
+A major advancement in the development of ORDEM 3.0, and maintained for ORDEM 3.1, was the breakdown of
+debris into material density categories, which were incorporated to better assess the risk to spacecraft from different
+families of debris. Five populations are modeled, including intacts (spacecraft and rocket bodies); low-density
+(1.4 g/cc as used for risk assessments) fragments; medium-density (2.8 g/cc) fragments and microdebris; high-
+density (7.9 g/cc) fragments and microdebris; and sodium-potassium (NaK) coolant droplets (0.9 g/cc) from the
+Radar Ocean Reconnaissance Satellite (RORSAT) class of spacecraft.
+3     ORDEM 3.1 MODEL POPULATIONS
+The ORDEM models are data-driven, and reliable data are required to build a realistic and valid model. Table 1
+gives a summary of the ground-based and in situ datasets used for building and validating the ORDEM 3.1 model,
+including calendar year (CY) range of measurements and limiting sizes.
+                Table 1. Datasets used for building and validating the ORDEM 3.1 model populations.
+
+                                                            Detection Size
+                                       Source     Orbit                        Calendar Year(s):    Calendar Year(s):
+            Data Source                                         Range
+                                        Type     Region                          Model Build        Model Validation
+                                                            (approximate)
+STS windows, excluding cargo
+                                      in situ    LEO       10 – 300 µm        1995-2011             N/A
+bay windows
+STS radiators                         in situ    LEO       300 µm – 1 mm      1995-2011             N/A
+HST Bay 5 MLI cover                   in situ    LEO       10 – 300 µm        N/A                   1990-2009
+HST WFPC-2 radiator                   in situ    LEO       50 – 300 µm        N/A                   1993-2009
+                                                                              2007*, 2009*,
+HUSIR, 75°E                           Radar      LEO       >5.5 mm                                  2016-2017
+                                                                              2013-2015
+HUSIR, 20° S                          Radar      LEO       >2 cm              2015                  N/A
+Goldstone                             Radar      LEO       2 – 8 mm           N/A                   2016-2017
+                                      Radar,     LEO,      >10 cm (LEO),
+SSN                                                                           1957-2015             2016
+                                      Optical    GEO       >1 m (GEO)
+MODEST (UCTs and CT debris)           Optical    GEO       >30 cm             2004-2009             2013-2014
+* Datasets used for characterization of large breakups (Fengyun-1C [FY-1C], Iridium 33, and Cosmos 2251). Data
+              from special Haystack observation campaigns around the time of the event were used.
+
+The fundamental dataset for ODPO modeling efforts is the ODPO-maintained space traffic database, which
+characterizes satellites launched – including known and/or estimated orbital elements and physical characteristics –
+as well as details of known historical breakups and maneuvers. The space traffic database is largely predicated upon
+the Space Surveillance Network (SSN) catalog, which is considered nearly complete for objects larger than
+approximately 10 cm in LEO and 1 m in GEO. The yearly space traffic is propagated forward in time using the
+NASA LEO-to-GEO Environment Debris (LEGEND) Model [7]. The LEGEND model provides the baseline for
+most sub-populations in ORDEM, which consist of a large number of orbits with specified orbital elements, the
+number of objects on each orbit, as well as size (characteristic length), and material-type assignment for each object.
+The historical population (i.e., initial reference population) for ORDEM 3.1 covered launches from 1957 to 2015.
+Fragments from confirmed historical fragmentation events were created using a special version of the NASA
+Standard Satellite Breakup Model (SSBM), which extends the standard model to incorporate material density
+assignments for fragments less than 10 cm based on percentages derived from analysis of fragments generated by
+the Satellite Orbital Debris Characterization Impact Test (SOCIT) series [8] as well as known satellite material
+breakdowns [9]. For the future projection, covering 2016 through 2050, objects were added to the population
+assuming a repeat of the previous 8-year launch traffic cycle and a post-mission disposal success rate of 90% for
+rocket bodies and spacecraft. Future collisions and explosions were modeled statistically. Objects greater than 10 cm
+were allowed to collide according to the “cube” collision assessment algorithm in LEGEND [10]. Probabilities of
+explosion for intact objects were assessed using an object-class-dependent explosion rate model [11].
+In LEO, LEGEND models fragments down to 1 mm in diameter, and assigns material densities according to
+fragment size and area-to-mass ratio. In GEO, LEGEND models fragments down to 10 cm. To build a statistically
+complete representation of debris populations, the initial reference population was adjusted based on data from
+instruments optimized to observe debris with sizes smaller than the SSN cataloging threshold, including ground-
+based and in situ sensors.
+3.1     Radar-based populations
+The Haystack Ultrawideband Satellite Imaging Radar (HUSIR) is a 37 meter dish, X-band radar operated by the
+Massachusetts Institute of Technology Lincoln Laboratory, which provides data for LEO debris larger than
+approximately 5.5 mm. The sensor is located at a latitude of 42.6° N and operates in a staring mode for debris
+observations. The radar, with its 0.058° 3-dB two-sided beamwidth at 10 GHz, is pointed at a fixed point in space
+with respect to the local topocentric coordinate system, and objects pass through the radar beam. Data used for
+building the ORDEM 3.1 model populations were collected during CY 2013-2015 with staring directions of 75°
+elevation, due East (referred to as “75E”) and 20° elevation, due South (referred to as “20S”). Composite data from
+HUSIR CY 2013-2015 were used to scale the initial LEO populations modeled by LEGEND. Special populations in
+LEO, including specific debris generation events, anomalous non-explosive events, and the NaK population, were
+modeled and scaled independently, as discussed in Section 3.1.1. Final scalings were applied to the modeled
+populations based on size, eccentricity, and inclination to better match the HUSIR data.
+3.1.1    Special populations
+ORDEM 3.1 includes several “special populations” of objects, so designated based on certain criteria, including
+unique cloud attributes, a notable release mechanism, anomalous or significant production of fragments, or lack of a
+readily-identifiable source or production mechanism. These special populations are summarized in Table 2 and
+include 10 custom breakup events; the major breakup clouds from the FY-1C antisatellite test and the Iridium
+33/Cosmos 2251 accidental collision; debris from shedding events by the SNAPSHOT vehicle and Transit series of
+spacecraft; and the NaK droplets that were released from RORSATs. With the exception of the 10 custom breakup
+events, these specific populations were not included in the LEGEND baseline model, but were modeled, propagated,
+and added to the ORDEM populations independently. Since collisions in LEGEND are limited to objects greater
+than 10 cm, fragments from these special populations generally do not affect the modeled future collision rate.
+                             Table 2. Special debris populations modeled in ORDEM 3.1.
+
+                                         Estimated Parent Altitude and Inclination
+             Description                                                                   Debris Event Date
+                                                      at Event Date
+Ten custom breakup events                Event-specific                               Event-specific
+Chinese Anti-satellite Test
+                                         ~850 km, 98.8°                               11 Jan 2007
+(i.e., ASAT, FY-1C)
+Iridium 33 / Cosmos 2251 collision       ~790 km, 86.4° / ~790 km, 74.0°              10 Feb 2009
+SNAPSHOT (1965-027A) satellite                                                        Multiple events and a single
+                                         ~1300 km, 90.3°
+debris event                                                                          large event in 1984
+Transit constellation satellite debris                                                Deposited at end-of-mission
+                                         ~1100 km, 90°
+events (33 events)                                                                    + 20 years, per vehicle
+                                                                                      Assumed steady-state per
+NaK                                      900-1000 km (one at 700-760 km), ~65°
+                                                                                      CY 2013-2015 HUSIR data
+
+These special populations were scaled statistically based on comparisons to the HUSIR data. Ten specific historical
+breakup events were identified as requiring custom adjustments. To better match the radar data, these 10 breakups
+were assigned size-dependent scale factors to adjust the overall number and the slope of the cumulative size
+distribution of fragments smaller than 10 cm. The major breakups of FY-1C, Iridium 33, and Cosmos 2251 were
+reanalyzed for ORDEM 3.1 and the model results were compared to Haystack data from special observation
+campaigns around the time of each event. These comparisons indicated the need for an overall scaling of the number
+of fragments as well as incorporating momentum transfer effects in the modeling of these major clouds. In addition,
+comparisons were made to the HUSIR CY 2013-2015 data, which represent the state of the clouds after nearly a full
+solar cycle. This analysis showed that the fragments for these clouds, in particular Iridium 33, appeared to be
+decaying at a faster rate than predicted by the models, and enhancements were made to the area-to-mass ratios of
+debris in these clouds to capture this behavior. The SNAPSHOT/Transit events are anomalous in that they appear to
+be slowly shedding off mass over time. These events were initially modeled using the NASA SSBM with a
+maximum separation velocity of 5 m/s, and final modeled clouds were developed using a Bayesian approach [5, 12].
+The NaK model was revised for ORDEM 3.1 to be in steady state. This was based on analysis of the newest HUSIR
+data, along with a new screening method for NaK droplets, which suggested there is still a significant contribution
+of small (< 1 cm) droplets at the highest altitudes, where atmospheric drag should have removed them by now [13].
+The NaK population is the only special population explicitly identified in the ORDEM population types due to its
+unique characteristics (e.g., spherical shape and unique material density). Debris from all other events/sources are
+included within the other material density families (low-, medium-, or high-density). Note that ORDEM 3.0
+included a special population from an unknown source at approximately 56° inclination; this population is no longer
+evident in recent HUSIR data, so it is not included in ORDEM 3.1.
+3.2    In situ-based populations
+Data for debris in the sub-millimeter size range in LEO are provided by the database of impacts to the U.S. Space
+Transportation System (STS) orbiter vehicle (i.e., the Space Shuttle), as archived by NASA’s Hypervelocity Impact
+Technology (HVIT) group. The database contains information on impacts to the shuttle, categorized by mission and
+surface. Data on impacts to the shuttle windows (excluding the cargo bay windows) and radiators from STS
+missions 71 through 133 (1995-2011) were used for building the ORDEM 3.1 small particle population. The
+window and radiator data approximately cover size ranges of 10 µm – 300 µm and 300 µm – 1 mm, respectively.
+The small particle population less than 3 mm was modeled separately from the radar-based population using a
+special small-particle degradation model [14]. This model simulates how large intact objects (i.e., spacecraft and
+rocket bodies in historical and future environments as simulated by the LEGEND model) create micron-sized
+particles. The number of micro-debris objects, created by a surface degradation process, was assumed proportional
+to the surface area of a source body (i.e., intact object). The average production rate was calculated using an
+arbitrary initial production rate based on particle size, time interval, and the surface area of the source object. The
+initial size distribution was sampled randomly from a uniform log scale between 10 μm and 3 mm. The number of
+objects produced in a time interval was sampled from a Poisson distribution using the average production rate. The
+newly created particles were simulated with zero delta-velocity, so they shared the same orbit with the source body
+at the creation time, and their orbits were evolved over time under standard orbit perturbations. The predicted impact
+rate of these modeled particles on the STS for each mission (including year, epoch, and spacecraft orientation) was
+computed, and the number of predicted damage features of various sizes was calculated using empirical damage
+equations [15]. In general, these equations are of the form:
+                                Y    c d    ρ    v    cosθ    ,                                                    (1)
+
+where dp is the particle diameter, ρ is the mass density, v is the impact/relative velocity, θ is the impact angle, and
+the ensemble (c, α, β, γ, δ) are fit coefficients for the specific dependent feature characteristic Y, which represents
+the crater depth, diameter, etc. The adjustable size-dependent production distribution for this initial reference
+population was modeled as a log-log cubic polynomial. The parameters of this production curve were adjusted to
+match the observed feature distribution from the STS impact database, with the goodness-of-fit being measured by a
+maximum-likelihood-estimation technique. A similar analysis was used for ORDEM 3.0 where the missions and
+surfaces were merged for fitting. For ORDEM 3.1, the analysis was expanded so that each STS mission and each
+window and radiator element was fitted independently in order to better preserve altitude and directionality effects.
+3.3    Optical-based populations
+For the GEO region, the SSN catalog provides coverage down to a limit of approximately 1 m. The population of
+smaller objects in the GEO population was characterized using composite data from Michigan Orbital DEbris
+Survey Telescope (MODEST) observation campaigns in 2004-2006 [16] and 2007-2009 [17]. MODEST detections
+include objects correlated to those in the SSN catalog, termed correlated targets (CTs), as well as uncorrelated
+targets (UCTs), which may be either debris or intacts. The MODEST data is considered complete down to
+approximately 30 cm (converting absolute magnitude to size [18]). The focus for ORDEM development is on the
+smaller (fainter) UCTs, which are most likely to be debris, so MODEST UCTs with sizes greater than 1.25 m
+(magnitude less than 17.1) were excluded.
+Several new analysis techniques were employed in building the GEO component of ORDEM 3.1 [19]. In an effort to
+exclude non-GEO objects which may masquerade as GEO objects due to the short arc of GEO observations and the
+resulting circular orbit assumption, a so-called “debris ring filter” was applied in inclination (INC), right ascension
+of the ascending node (RAAN) space. Over a period of decades, uncontrolled objects in near-GEO orbits naturally
+precess in INC-RAAN space due to effects from the Earth’s oblateness and the gravity of the Sun and the Moon
+[16]. This natural precession traces a loop in the Cartesian coordinates of (INC·cos(RAAN), INC·sin(RAAN)),
+which represents the projection of the orbit’s angular momentum vector on the equatorial plane. To exclude those
+objects whose orbits lie outside of the natural precession loop, the debris filter developed for ORDEM 3.1 takes into
+account the angle between an object’s angular momentum vector and a unit vector orthogonal to the stable Laplace
+plane, assumed to have an inclination of 7.2° [20]. Fig. 1 shows the MODEST 2004-2009 UCTs and CT debris in
+(INC·cos(RAAN), INC·sin(RAAN)) space. Four GEO breakups that occurred prior to the MODEST observations
+and during the historical period covered by LEGEND are also shown for reference. These are the Titan 3C
+Transtage (1968-081E, SSN #3432), Ekran 2 (1977-092A, SSN #10365), Ekran 4 (1979-087A, SSN #11561), and
+Ekran 9 (1982-093A, SSN #13554). These fragmentations are not explicitly included in the ORDEM 3.1
+populations, but are implicitly included via the MODEST data; this approach prevents any potential overestimation
+of these fragments that are resident in the set of MODEST UCTs. By extension, fragments from any unconfirmed or
+unknown GEO breakups that have not been modeled are also implicitly included.
+New methods were also utilized for assigning non-circular orbits to the MODEST UCTs. Since MODEST
+detections use a circular orbit assumption for UCTs, non-circular orbits were assigned to the UCTs based on
+correlations determined from the modeled GEO breakups between mean motion, eccentricity, and the angle between
+an object’s orbit plane and the stable Laplace plane. The GEO model population was extended to 10 cm based on the
+slope of the cumulative size curve of the objects in the filtered composite dataset, and orbital parameters were
+statistically sampled based on the non-circular orbital elements of objects in the filtered composite dataset.
+
+
+
+
+    Fig. 1. MODEST 2004-2009 UCTs and CT debris with size 30 cm – 1.25 m, projected in (INC·cos(RAAN),
+ INC·sin(RAAN)) Cartesian space and overlaid with the debris ring filter limits. General regions of fragments from
+  the four GEO breakups that occurred prior to the MODEST campaigns are indicated for reference. Objects seen
+       outside the ring were excluded from the model as probable non-GEO objects imitating GEO behavior
+                                      over the short-time arc of observations.
+
+4    MODEL VALIDATION
+An independent set of data sources was used to validate ORDEM 3.1 to ensure the model provides a valid
+representation of the orbital debris environment. Typically, these observations come from the same sensor that
+provided data used for building the model, but for later years, to ensure that model predictions remain applicable in
+an evolving and dynamic orbital debris environment. In other cases, additional data sources provide a unique
+perspective on the environment that may extend the size of the orbital debris observation or contain more
+information about a particular orbital regime than was available from the source(s) used for building the model. The
+data used for validating the ORDEM 3.1 model populations are shown in Table 1.
+  Fig. 2. Comparison of the surface area flux vs SEM size between ORDEM 3.0, ORDEM 3.1, and measurements
+                      from HUSIR 75E in 2016. The altitude is restricted to 400 – 1000 km.
+
+
+
+
+  Fig. 3. Comparison of the surface area flux vs SEM size between ORDEM 3.0, ORDEM 3.1, and measurements
+                       from Goldstone in 2016. The altitude is restricted to 400 – 1000 km.
+
+For LEO, HUSIR 75E data from 2016-2017 were used for validation of the > 5.5 mm populations. In addition,
+Goldstone radar data from 2016-2017 were used to validate the model populations at sizes smaller than the HUSIR
+threshold (down to approximately 2 mm). Sample validation results for cumulative surface area flux as a function of
+size for the altitude range 400 km to 1000 km in 2016 is shown in Fig. 2 for HUSIR 75E. The surface area flux is
+defined as the number of debris objects that pass through the radar beam, divided by the surface area of the radar
+beam (assuming the 3-dB beamwidth of the radar) per unit time – in this case on a yearly basis. The roll-off in
+sensitivity for HUSIR at approximately 5.5 mm at 1000 km is seen in the level-off of the data curve at small sizes in
+Fig. 2. The uncertainties on the HUSIR data are the one-σ uncertainties for counts from a Poisson distribution (see
+Ref. 21 for details). The ORDEM 3.0 prediction is also shown for reference. The ORDEM 3.0 results represent a
+prediction of over a decade into the “future” relative to the years covered by the radar data used for building
+ORDEM 3.0. Thus, ORDEM 3.1, which was built from datasets that are more recent, is expected to better agree
+with the newer data. Fig. 3 shows a similar comparison of the cumulative surface area flux as a function of size for
+ORDEM 3.0, ORDEM 3.1, and Goldstone data in 2016. Goldstone is more sensitive to the smaller debris particles
+than HUSIR, and the data is well-matched to the model prediction down to approximately 3 mm. Fig. 4 shows a
+comparison of surface area flux vs. altitude between ORDEM 3.0, ORDEM 3.1, and HUSIR 75E data for a limiting
+size of 1 cm and larger in 2016 . Overall, ORDEM 3.1 is considered a very good match to the radar data and a
+significant improvement over ORDEM 3.0.
+
+
+
+
+ Fig. 4. Comparison of the surface area flux vs altitude for a limiting size of 1 cm and larger between ORDEM 3.0,
+                            ORDEM 3.1, and measurements from HUSIR 75E in 2016.
+
+
+
+
+  Fig. 5. Comparison of the cumulative cross-sectional area flux vs size between ORDEM 3.0, ORDEM 3.1, and
+   impact data from the HST Bay 5 MLI and WFPC-2 radiator. The ORDEM curves include the meteoroid flux
+        estimates from the MEM R2 model. Two sets of MLI data points are shown, assuming all points as
+                    either MD or HD. The MEM R2 model results are also shown for reference.
+
+The sub-millimeter model populations were validated using new data from impacts to the Hubble Space Telescope
+(HST), specifically the multilayer insulation (MLI) cover on HST’s Bay 5 (exposure time covering 1990-2009) and
+the Wide Field Planetary Camera 2 (WFPC-2) radiator (exposure time covering 1993-2009). Impacts to the Bay 5
+MLI were analyzed to determine feature sizes and resulting projectile sizes based on newly-developed damage
+equations. New techniques to analyze craters on the WFPC-2 radiator using Scanning Electron Microscopy-Electron
+Dispersive X-ray (SEM-EDX) analysis were also developed, which contributed data on sub-millimeter impacts at
+HST altitudes. Validation of a total micrometeoroid and orbital debris environment (ORDEM 3.1 plus the meteoroid
+flux from the NASA Meteoroid Engineering Model Release 2.0 [MEM R2, see Ref. 22]) against these datasets is
+shown in Fig. 5. Uncertainties in the flux are the one σ Poisson uncertainties, as for the radar data. Sizes given for
+the HST impact data were calculated using empirical damage equations (of the form of Eq. (1)) relating feature size
+and estimated particle size for each surface. Distributions in impact angles and velocities were used to generate
+distributions in estimated particle size from the impact feature sizes, based on vehicle surface pointing directions,
+and the one-σ uncertainties from these distributions are shown by the horizontal uncertainties in Fig. 5. The model is
+considered in excellent agreement with these datasets.
+The GEO component of ORDEM 3.1 was validated against a MODEST dataset covering 2013-2014. Initial
+validation indicated discrepancies between the model and the MODEST 2013-2014 data in terms of “clock angle,”
+defined as an angle in the Cartesian coordinates of (INC·cos(RAAN), INC·sin(RAAN)) (see Fig. 1) where 0° is
+defined by a vector originating at (7.2°,0°) and pointing in the (0°,0°) direction, and the angle increases in a clockwise
+direction. Thus, two simulated breakups, potentially corresponding to unidentified breakups that occurred during the
+2009-2013 break between the MODEST observation campaigns, were added to the model to better match the
+MODEST 2013-2014 dataset. Fig. 6 shows the distribution in clock angle for the initial (without the simulated
+breakups) and final (including the two simulated breakups) ORDEM 3.1 GEO population, as compared to the
+MODEST 2013-2014 data. Uncertainties shown for the MODEST data points are the one-σ confidence intervals
+from the standard Poisson counting error, incorporating the statistical weighting of the MODEST observations (see
+Ref. 19 for details). Clearly, the final ORDEM 3.1 model is improved by the addition of the simulated breakups and
+is a good match to the MODEST data.
+
+
+
+
+     Fig. 6. Clock angle distribution of the ORDEM 3.1 initial GEO population, final GEO population including the
+       addition of two simulated breakups, and MODEST 2013-2014 UCTs and CT debris, for sizes 30 cm – 1 m.
+
+5      SUMMARY
+The newest version of the NASA ODPO orbital debris engineering model, ORDEM 3.1, is in the final stages of
+review. Like ORDEM 3.0, version 3.1 provides fluxes of debris larger than 10 µm in LEO and 10 cm in GEO;
+fragments smaller than 10 cm are further differentiated based on material density categories (high, medium, and
+low) to better characterize the potential debris risk posed to spacecraft. Improved data analysis techniques applied
+during the population build phase of ORDEM 3.1 include new assessments of the major breakup events (FY-1C
+antisatellite test and Iridium 33/Cosmos 2251 accidental collision) to account for momentum transfer effects and
+higher-than-expected drag rates; incorporation of directional and altitude influences in the STS window and radiator
+impact dataset; and a refined analysis of GEO debris objects and orbit definitions. Validation efforts for the model
+populations indicate good agreement between the model and data from measurement sources/years independent of
+those used for building the model. As compared to ORDEM 3.0 predictions, ORDEM 3.1 provides significantly
+better fits to modern data and a more updated representation of a dynamic orbital debris environment.
+
+6      REFERENCES
+1.    Kessler, D. J. “Orbital Debris Environment for Space Station,” JSC Internal Note 20001, 1984.
+2.   Kessler, D. J., Reynolds, R. C., and Anz-Meador, P. D. “Orbital Debris Environment for Spacecraft Designed to
+     Operate in Low Earth Orbit,” NASA TM 100 471, 1989.
+3.   Kessler, D.J., Zhang, J., Matney, M.J., et al. “A Computer-Based Orbital Debris Environment Model for
+     Spacecraft Design and Observation in Low Earth Orbit,” NASA TM-104825, 1996.
+4.   Liou, J.-C., Matney, M., Anz-Meador, P.D., et al. “The New NASA Orbital Debris Engineering Model
+     ORDEM2000,” NASA/TP-2002-210780, 2002.
+5.   Stansbery, E.G., Matney, M.J., Krisko, P.H., et al. “NASA Orbital Debris Engineering Model ORDEM 3.0 –
+     Verification and Validation,” NASA/TP-2015-218592, October 2015.
+6.   Krisko, P.H. The New NASA Orbital Debris Engineering Model ORDEM 3.0, AIAA 2014-4227, 2014.
+7.   Liou, J.-C., Hall, D. T., Krisko, P. H., and Opiela, J. N. LEGEND – A Three-Dimensional LEO-to-GEO Debris
+     Evolutionary Model, Adv. Space Res., Vol. 34, pp. 981-986, 2005.
+8.   Krisko, P. H., Xu, Y.-L., Opiela, J. N., et al. Material Density Distribution of Small Debris in Earth Orbit, 59th
+     International Astronautical Congress, Glasgow, United Kingdom, IAC-08.A6.2.1, 2008.
+9.   Opiela, J. A Study of the Material Density Distribution of Space Debris, Adv. Space Res., Vol. 43, pp. 1058-
+     1064, 2009.
+10. Liou, J.-C. Collision Activities in the Future Orbital Debris Environment, Adv. Space Res., Vol. 38, pp. 2102-
+    2106, 2006.
+11. Anz-Meador, P. “Explosion Probabilities for use by Long-Term Orbital Debris Environment Statistical
+    Models,” Viking Technical Note VTN-LM-02-04, 2002.
+12. Xu, Y.-L., Horstman, M., Krisko, P.H.,et al., Modeling of LEO orbital debris populations for ORDEM2008,
+    Adv. in Space Res. Vol. 43, pp. 769-782, 2009.
+13. Matney, M., Anz-Meador, P., Murray, J., and Miller, R. “The NaK Population: A 2019 Status,” Paper
+    presented at the 1st International Orbital Debris Conference, Sugar Land, TX, 9-12 December, 2019.
+14. Seago, J., Matney, M., and Vavrin, A. “Development of a Model for the Small-Particle Orbital Debris
+    Population Based on the STS Impact Record,” Paper presented at the 1st International Orbital Debris
+    Conference, Sugar Land, TX, 9-12 December, 2019.
+15. Christiansen, E., Bernhard, R., and Hartsough N. “Orbiter Meteoroid/Orbital Debris Impacts: STS-50 (6/92)
+    through STS-86 (10/97),” JSC-28033, August 1998, p. 60.
+16. Abercromby, K.J., Seitzer, P., Barker, E.S., et al. “Michigan Orbital DEbris Survey Telescope Observations of
+    the Geosynchronous Orbital Debris Environment, Observing Years: 2004 – 2006,” NASA/TP-2010-216129,
+    August 2010.
+17. Abercromby, K.J., Seitzer, P., Cowardin, H.M., et al. “Michigan Orbital DEbris Survey Telescope Observations
+    of the Geosynchronous Orbital Debris Environment, Observing Years: 2007 – 2009,” NASA/TP-2011-217350,
+    September 2011.
+18. Barker, E.S., Africano, J. L., Hall, D. T., et al. Analysis of Working Assumptions in the Determination of
+    Populations and Size Distributions of Orbital Debris from Optical Measurements. In Proceedings of the 2004
+    AMOS Technical Conference, Wailea, Maui, HI, pp. 225-235, 2004.
+19. Manis, A., Matney, M., Anz-Meador, P., and Cowardin, H. “The Updated GEO Population for ORDEM 3.1,”
+    Paper presented at the 1st International Orbital Debris Conference, Sugar Land, TX, 9-12 December, 2019.
+20. Rosengren, A.J., Scheeres, D.J., and McMahon, J.W. The classical Laplace plane as a stable disposal orbit for
+    geostationary satellites, Adv. Space Res., Vol. 53, pp. 1219-1228, 2014.
+21. Murray, J., Blackwell, C., Gaynor, J., and Kennedy, T. “Haystack Ultra-Wideband Satellite Imaging Radar
+    Measurements of the Orbital Debris Environment: 2014-2017,” NASA/TP-2019-220302, July 2019.
+22. Moorhead, A.V, Koehler, H.M., and Cooke, W.J. “NASA Meteoroid Engineering Model Release 2.0,”
+    NASA/TM-2015-218214, October 2015.
+

@@ -1,0 +1,8 @@
+jplephem==2.24
+matplotlib==3.11.2
+numba==0.68.0
+numpy==2.5.4
+playwright==1.64.0
+plotly==7.1.0
+pygmo==2.20.0
+scipy==1.18.1

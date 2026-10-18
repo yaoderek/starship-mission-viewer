@@ -55,26 +55,37 @@ const gcrRate = (s, absorbs, outside) => absorbs ? 0.02 : 1.84 * Math.min(1, shi
 const protonMeV = g => (g - 1) * 938.272;
 // Water range (cm) for protons; Bragg-Kleeman fit, extrapolated above ~300 MeV.
 const protonRange = E => 0.0022 * Math.pow(E, 1.77);
+// Dose rate (mSv per day of ship time) from interstellar hydrogen hitting the bow at speed beta. In the ship frame
+// the gas is denser by gamma, so the flux is gamma·n·beta·c. If the forward shield (or Astrophage) is thicker than
+// the proton range it stops them; otherwise they pass through the crew at ~1.5 nSv·cm² each (GeV class).
+const ISM_N = 0.2;   // neutral H per cm³, local interstellar medium (Crawford 2011)
+function gasRate(beta, p) {
+  if (beta < 1e-4) return 0;
+  const g = 1 / Math.sqrt(1 - beta * beta), E = protonMeV(g);
+  if (p.absorbs || p.frontal >= protonRange(E)) return 0;
+  return g * ISM_N * beta * C * 100 * 1.5e-9 * (E > 30 ? 1 : E / 30) * 1000 * 86400;
+}
 
 export function buildMission(star, veh, params, launchYear = 2035, label) {
   const p = { ...veh.p, ...params };
   const pr = profile(p, star.ly), jd0 = yearJd(launchYear), dir = starDir(star), N = 400;
   const T = pr.T, days = T / DAY, tauDays = pr.tau / DAY;
   const traj = [], rad = { jd: [], r_au: [], gcr_rate: [], gcr_cum: [], belt_cum: [], belt_cum_sh: [], spe_mean: [], spe_p95: [], spe_mean_sh: [], spe_p95_sh: [],
-    tot_mean: [], tot_p95: [], tot_mean_sh: [], tot_p95_sh: [], spe_p30: [], beta: [], tau: [], belts: [] };
-  let cum = 0, prevTau = 0, peak = 0;
+    tot_mean: [], tot_p95: [], tot_mean_sh: [], tot_p95_sh: [], spe_p30: [], beta: [], tau: [], belts: [], gas_cum: [] };
+  let cum = 0, gas = 0, prevTau = 0, peak = 0;
   for (let i = 0; i <= N; i++) {
     const t = T * i / N, s = pr.state(t), x = s.x;
     traj.push([jd0 + t / DAY, dir[0] * x, dir[1] * x, dir[2] * x]);
-    const outside = x > 120 * AU_LY, r = gcrRate(p.shield, p.absorbs, outside);
-    cum += r * (s.tau - prevTau) / DAY; prevTau = s.tau; peak = Math.max(peak, r);
-    rad.jd.push(jd0 + t / DAY); rad.r_au.push(x); rad.gcr_rate.push(r); rad.gcr_cum.push(cum); rad.beta.push(s.beta); rad.tau.push(s.tau / DAY);
+    const outside = x > 120 * AU_LY, r = gcrRate(p.shield, p.absorbs, outside), rg = gasRate(s.beta, p), dtau = (s.tau - prevTau) / DAY;
+    cum += r * dtau; gas += rg * dtau; prevTau = s.tau; peak = Math.max(peak, r + rg);
+    rad.jd.push(jd0 + t / DAY); rad.r_au.push(x); rad.gcr_rate.push(r + rg); rad.gcr_cum.push(cum); rad.gas_cum.push(gas); rad.beta.push(s.beta); rad.tau.push(s.tau / DAY);
     for (const k of ['belt_cum', 'belt_cum_sh', 'spe_mean', 'spe_p95', 'spe_mean_sh', 'spe_p95_sh', 'spe_p30']) rad[k].push(0);
-    rad.tot_mean.push(cum); rad.tot_mean_sh.push(cum); rad.tot_p95.push(cum * 1.6); rad.tot_p95_sh.push(cum * 1.6);
+    rad.tot_mean.push(cum + gas); rad.tot_mean_sh.push(cum + gas); rad.tot_p95.push(cum * 1.6 + gas * 3); rad.tot_p95_sh.push(cum * 1.6 + gas * 3);
   }
-  rad.totals = { gcr: cum, gcr_p05: cum * 0.6, gcr_p95: cum * 1.6, belts: 0, belts_sh: 0, spe_mean: 0, spe_p95: 0, spe_mean_sh: 0, spe_p95_sh: 0,
-    total_mean: cum, total_p95: cum * 1.6, total_mean_sh: cum, total_p95_sh: cum * 1.6, win30_p95: peak * 30 * 1.6, win30_p95_sh: peak * 30 * 1.6,
-    win365_p95: Math.min(cum, peak * 365) * 1.6, win365_p95_sh: Math.min(cum, peak * 365) * 1.6, days: tauDays, shelter_gcm2: p.shield, hull_gcm2: p.shield };
+  const tot = cum + gas, tot95 = cum * 1.6 + gas * 3;   // gas dose is an order-of-magnitude estimate
+  rad.totals = { gcr: cum, gcr_p05: cum * 0.6, gcr_p95: cum * 1.6, gas, belts: 0, belts_sh: 0, spe_mean: 0, spe_p95: 0, spe_mean_sh: 0, spe_p95_sh: 0,
+    total_mean: tot, total_p95: tot95, total_mean_sh: tot, total_p95_sh: tot95, win30_p95: Math.min(tot95, peak * 30 * 1.6), win30_p95_sh: Math.min(tot95, peak * 30 * 1.6),
+    win365_p95: Math.min(tot95, peak * 365 * 1.6), win365_p95_sh: Math.min(tot95, peak * 365 * 1.6), acute: Math.min(tot, peak * 2), peak_rate: peak, days: tauDays, shelter_gcm2: p.shield, hull_gcm2: p.shield };
   rad.limits = { career: 600, bfo_30d: 250, bfo_1yr: 500 };
   rad.interstellar = true;
 
@@ -100,7 +111,7 @@ export function buildMission(star, veh, params, launchYear = 2035, label) {
     launch: String(launchYear), arrive: String(Math.round(launchYear + T / YR)), earth_days: days, ship_days: tauDays, total_days: days, tof_years: T / YR,
     beta: pr.beta, gamma: pr.gamma, mr: pr.mr, prop_t: p.prop, prop_used_t: propUsed, dry_t: p.dry, decel: p.decel, crew: p.crew, kind: p.kind,
     ke_J: (pr.gamma - 1) * mCruise * 1000 * C * C, accel: p.accel, ve: p.ve, wUsed: pr.wUsed, wTurn: pr.wTurn, turnover: pr.tCoast <= 1,
-    feasible: p.kind !== 'rocket' || propUsed <= p.prop * 1.000001, dose_mean: cum, dose_p95: cum * 1.6, dose_mean_sh: cum, dose_p95_sh: cum * 1.6,
+    feasible: p.kind !== 'rocket' || propUsed <= p.prop * 1.000001, dose_mean: tot, dose_p95: tot95, dose_mean_sh: tot, dose_p95_sh: tot95,
   };
   for (const e of events) e.date = fmtDate(e.jd);
   const risk = interstellarRisks(star, p, pr, summary, jd0, jdA, jdC, jdEnd);
@@ -115,8 +126,8 @@ function interstellarRisks(star, p, pr, S, jd0, jdA, jdC, jdEnd) {
   const unshielded = flux * 1.5e-9 * 3600 * (E > 30 ? 1 : E / 30);                   // Sv/h, ~1.5 nSv·cm² per GeV-class proton
   const crewed = p.crew > 0;
   if (b > 0.01) R.push({ id: 'ism', cat: 'Cruise', title: 'Interstellar gas hits the bow as a particle beam', value: E, unit: 'MeV per hydrogen atom',
-    prob: null, level: shieldOK ? 'LOW' : b > 0.3 ? 'HIGH' : 'MED', basis: 'quantitative', jd0: jdA, jd1: jdC,
-    note: `At ${(b * 100).toFixed(b > 0.99 ? 1 : 0)}% of light speed every hydrogen atom arrives with ${sig(E)} MeV, about ${sig(flux)} per cm² per second. Stopping them takes roughly ${range >= 100 ? sig(range / 100) + ' m' : sig(range) + ' cm'} of water ahead of the crew${p.absorbs ? '; in the novel the Astrophage fuel absorbs it' : `; this design carries about ${sig(p.frontal)} g/cm²`}. Unshielded dose would be on the order of ${sig(unshielded)} Sv per hour.`,
+    prob: null, level: shieldOK ? 'LOW' : 'HIGH', basis: 'quantitative', jd0: jdA, jd1: jdC,
+    note: `At ${(b * 100).toFixed(b > 0.99 ? 1 : 0)}% of light speed every hydrogen atom arrives with ${sig(E)} MeV, about ${sig(flux)} per cm² per second. Stopping them takes roughly ${range >= 100 ? sig(range / 100) + ' m' : sig(range) + ' cm'} of water ahead of the crew${p.absorbs ? '; in the novel the Astrophage fuel absorbs it' : `; this design carries about ${sig(p.frontal)} g/cm²`}. Unshielded dose would be on the order of ${sig(unshielded)} Sv per hour${shieldOK ? '' : `, which ${crewed ? 'would kill the crew' : 'would kill any crew aboard'} within ${unshielded > 10 ? 'minutes' : unshielded > 0.5 ? 'hours' : 'days'}`}.`,
     source: 'Semyonov 2020 https://arxiv.org/abs/2004.10079' });
   const dustKg = 6.2e-24 * star.ly * LY, eDust = (g - 1) * dustKg * C * C;            // local dust mass density (Crawford 2011)
   const grain = (g - 1) * 1e-9 * C * C;

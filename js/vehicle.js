@@ -2,10 +2,11 @@
 // Trajectory Δv legs do not depend on the vehicle, so we keep them and redo the propellant
 // chain with the rocket equation. With the baseline Starship inputs this reproduces the
 // numbers in the mission files exactly (see VERIFICATION.md, "multi-burn propellant chaining").
+import { shieldMass } from './radiation.js';
 const G0 = 9.80665;
 
 export function describeVehicle(p) {
-  return `dry ${p.dry} t, payload ${p.payload} t, tanks ${p.cap} t, Isp ${p.isp} s, up to ${p.maxTankers} tankers × ${p.tanker} t`;
+  return `dry ${p.dry} t, payload ${p.payload} t, tanks ${p.cap} t, Isp ${p.isp} s, up to ${p.maxTankers} tankers × ${p.tanker} t; ${p.wall ? `+${p.wall} g/cm² water round the cabin, ` : ''}${p.shelter ? `${p.shelter} g/cm² storm shelter` : 'no storm shelter'}`;
 }
 
 // Propellant needed to fly a list of burns (km/s, in order) ending at mass mf (t).
@@ -15,7 +16,9 @@ function chain(burns, mf, ve) {
   return m - mf;
 }
 
-export function resize(m, p, arch) {
+export function resize(m, p0, arch) {
+  // radiation shielding beyond the baseline (no extra wall, 20 g/cm² shelter) rides along as dry mass
+  const p = { ...p0, dry: p0.dry + shieldMass({ wall: p0.wall ?? 0, shelter: p0.shelter ?? 20 }) };
   const S = m.summary0 || (m.summary0 = { ...m.summary });
   const s = { ...S }, ve = p.isp * G0, mode = m.mode || 'one-way';
   const out = [S.dv_dep + (S.dv_dsm || 0), S.dv_capture || 0];
