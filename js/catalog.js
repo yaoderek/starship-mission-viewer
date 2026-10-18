@@ -36,13 +36,13 @@ export const MAP_STARS = [
 ];
 
 // Chemical / nuclear vehicles for planetary missions. Masses in tonnes.
-// Tankers: each tanker launch tops up `tanker` t of propellant in low Earth orbit.
+// Refuel missions: each one tops up `tanker` t of propellant in low Earth orbit.
 export const SOLAR_VEHICLES = [
   { id: 'starship', name: 'Starship', tag: 'Baseline', blurb: 'Published SpaceX specs. Dry mass is an outside estimate.',
     p: { dry: 120, payload: 100, cap: 1600, isp: 375, tanker: 100, residual: 50, maxTankers: 12, wall: 0, shelter: 20 } },
-  { id: 'starship-lite', name: 'Starship, optimistic', tag: 'Best case', blurb: 'Lighter ship (100 t) and fuller tankers (150 t) from the top of the public range.',
+  { id: 'starship-lite', name: 'Starship, optimistic', tag: 'Best case', blurb: 'Lighter ship (100 t) and 150 t per refuel mission, from the top of the public range.',
     p: { dry: 100, payload: 100, cap: 1600, isp: 380, tanker: 150, residual: 50, maxTankers: 12, wall: 0, shelter: 20 } },
-  { id: 'starship-heavy', name: 'Starship, conservative', tag: 'Worst case', blurb: 'Heavier ship (150 t), 366 s blended Isp, 100 t tankers.',
+  { id: 'starship-heavy', name: 'Starship, conservative', tag: 'Worst case', blurb: 'Heavier ship (150 t), 366 s blended Isp, 100 t per refuel mission.',
     p: { dry: 150, payload: 100, cap: 1600, isp: 366, tanker: 100, residual: 50, maxTankers: 16, wall: 0, shelter: 20 } },
   { id: 'ntr', name: 'NASA nuclear thermal', tag: 'DRA 5.0', blurb: 'NASA’s 2009 reference Mars ship: hydrogen heated by fission reactors at about 906 s Isp. 356 t assembled from 3 heavy-lift launches.',
     p: { dry: 94, payload: 63, cap: 200, isp: 906, tanker: 70, residual: 0, maxTankers: 3, wall: 0, shelter: 20 } },

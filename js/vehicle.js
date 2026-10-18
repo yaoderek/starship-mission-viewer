@@ -6,7 +6,8 @@ import { shieldMass } from './radiation.js';
 const G0 = 9.80665;
 
 export function describeVehicle(p) {
-  return `dry ${p.dry} t, payload ${p.payload} t, tanks ${p.cap} t, Isp ${p.isp} s, up to ${p.maxTankers} tankers × ${p.tanker} t; ${p.wall ? `+${p.wall} g/cm² water round the cabin, ` : ''}${p.shelter ? `${p.shelter} g/cm² storm shelter` : 'no storm shelter'}`;
+  const flights = n => `${n} refuel mission${Number(n) === 1 ? '' : 's'}`;
+  return `dry ${p.dry} t, payload ${p.payload} t, tanks ${p.cap} t, Isp ${p.isp} s, up to ${flights(p.maxTankers)} × ${p.tanker} t; ${p.wall ? `+${p.wall} g/cm² water round the cabin, ` : ''}${p.shelter ? `${p.shelter} g/cm² storm shelter` : 'no storm shelter'}`;
 }
 
 // Propellant needed to fly a list of burns (km/s, in order) ending at mass mf (t).
@@ -37,7 +38,7 @@ export function resize(m, p0, arch) {
   s.total_launches = s.tankers_needed == null ? null : s.tankers_needed + 1;
   const reasons = [];
   if (s.prop_leo_t > p.cap) reasons.push(`needs ${Math.round(s.prop_leo_t)} t, tanks hold ${p.cap} t`);
-  else if (s.tankers_needed > p.maxTankers) reasons.push(`needs ${s.tankers_needed} tankers, limit ${p.maxTankers}`);
+  else if (s.tankers_needed > p.maxTankers) reasons.push(`needs ${s.tankers_needed} refuel mission${s.tankers_needed === 1 ? '' : 's'}, limit ${p.maxTankers}`);
   if (s.prop_dest_t > p.cap) reasons.push(`return burn needs ${Math.round(s.prop_dest_t)} t at destination`);
   if ((S.dest_source || '').startsWith('REQ')) reasons.push('return propellant must already be waiting at the destination');
   if (m.isru && !m.isru.feasible_at_config) reasons.push('surface propellant plant too slow for this stay');

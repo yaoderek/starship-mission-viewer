@@ -308,7 +308,7 @@ export class Holo {
     const ev = [...ASCENT].reverse().find(e => T >= e.t);
     const mm = Math.floor(T / 60), ss = Math.floor(T % 60);
     let txt = `T+${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')} ${ev ? ev.label : ''}`;
-    if (tau > 22) { const n = A.tankers, k = n ? Math.min(n, Math.floor((tau - 22) / 4 * n) + 1) : 0; txt = n ? `ORBIT · PROPELLANT TRANSFER ${k}/${n} TANKERS` : 'ORBIT · PROPELLANT LOADED'; }
+    if (tau > 22) { const n = A.tankers, k = n ? Math.min(n, Math.floor((tau - 22) / 4 * n) + 1) : 0; txt = n ? `ORBIT · PROPELLANT TRANSFER ${k}/${n} REFUEL MISSION${n === 1 ? '' : 'S'}` : 'ORBIT · PROPELLANT LOADED'; }
     if (this.seqEl) this.seqEl.textContent = txt;
     if (tau > 26.5) { this.asc = null; if (this.seqEl) this.seqEl.textContent = ''; this.setStage({ frame: 1, booster: false }); A.onDone && A.onDone(); }
   }

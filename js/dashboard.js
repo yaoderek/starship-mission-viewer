@@ -82,7 +82,7 @@ const SOLAR_COLS = [
   ['launch', 'Launch', '', m => m.summary.launch, m => m.summary.launch],
   ['dur', 'Total', 'days', totDays, m => int(totDays(m))],
   ['dv', 'Δv', 'km/s', m => m.summary.dv_total, m => f1(m.summary.dv_total, 2)],
-  ['tk', 'Tankers', '', m => m.summary.tankers_needed ?? 99, m => m.summary.tankers_needed ?? '<span class="no">—</span>'],
+  ['tk', 'Refuel missions', '', m => m.summary.tankers_needed ?? 99, m => m.summary.tankers_needed ?? '<span class="no">—</span>'],
   ['dose', 'Dose', 'mSv', m => dose(m).mean ?? 1e9, m => doseCell(dose(m).mean)],
   ['cancer', 'Cancer', 'chance', m => dose(m).cancer ?? 9, m => cancerCell(dose(m))],
   ['feas', 'Status', '', m => m.summary.feasible ? 0 : 1, go]];
@@ -162,13 +162,13 @@ function renderBudget() {
   const why = S.why && S.why.length ? `<div class="wide why no">${S.why.map(esc).join('<br>')}</div>` : '';
   let rows;
   if (!rt) rows = [['Departure burn', f1(S.dv_dep, 2), 'km/s'], ['Course corrections', f1(S.dv_dsm, 2), 'km/s'], [`Capture (${S.capture === 'aero' ? 'aerobraking' : S.capture})`, f1(S.dv_capture, 2), 'km/s'],
-    ['Total Δv', f1(S.dv_total, 2), 'km/s', 'hl'], ['Propellant from orbit', S.prop_leo_t > P.cap ? no(int(S.prop_leo_t)) : int(S.prop_leo_t), 't'], ['Tanker flights', S.tankers_needed == null ? no('—') : `${S.tankers_needed} <span class="dim">(${S.tankers_needed + 1} launches)</span>`, '', 'hl']];
+    ['Total Δv', f1(S.dv_total, 2), 'km/s', 'hl'], ['Propellant from orbit', S.prop_leo_t > P.cap ? no(int(S.prop_leo_t)) : int(S.prop_leo_t), 't'], ['Refuel missions', S.tankers_needed == null ? no('—') : `${S.tankers_needed} <span class="dim">(${S.tankers_needed + 1} launches)</span>`, '', 'hl']];
   else {
     rows = [['Out / stay / back', `${int(S.out_days)} / ${int(S.stay_days)} / ${int(S.ret_days)}`, 'days'], ['Total', `${int(S.total_days)} d <span class="dim">(${(S.total_days / 365.25).toFixed(1)} yr)</span>`, ''],
       ['Departure burn', f1(S.dv_dep, 2), 'km/s'], [S.surface ? 'Mars landing' : `Capture (${S.capture})`, f1(S.dv_capture, 2), 'km/s'],
       [S.surface ? 'Ascent + return burn' : 'Return burn', f1(S.dv_ret_dep, 2), 'km/s'], ['Earth entry speed', S.v_entry_earth.toFixed(1) + (S.v_entry_earth > 12.5 ? ' ' + no('hot') : ''), 'km/s'],
       ['Total Δv', f1(S.dv_total, 2), 'km/s', 'hl'], ['Propellant from orbit', S.prop_leo_t > P.cap ? no(int(S.prop_leo_t)) : int(S.prop_leo_t), 't'],
-      ['Tanker flights', S.tankers_needed == null ? no('—') : `${S.tankers_needed} <span class="dim">(${S.tankers_needed + 1} launches)</span>`, '', 'hl'],
+      ['Refuel missions', S.tankers_needed == null ? no('—') : `${S.tankers_needed} <span class="dim">(${S.tankers_needed + 1} launches)</span>`, '', 'hl'],
       ['Propellant at destination', S.prop_dest_t > 0 ? (S.prop_dest_t > P.cap ? no(int(S.prop_dest_t)) : int(S.prop_dest_t)) : '0', 't'],
       ['Comes from', S.dest_source.startsWith('REQ') ? no('nothing modelled') : S.dest_source.startsWith('none') ? 'carried from Earth' : S.dest_source === 'ISRU' ? 'made on Mars' : S.dest_source, ''],
       ['Verdict', S.feasible ? ok('works') : no('does not close'), '']];
@@ -262,7 +262,7 @@ function renderShield() {
   $('wallseg').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.w === shield.wall));
   $('shseg').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.s === shield.shelter));
   const dm = Rad.shieldMass(shield), tk = mission && mission.summary.tankers_needed;
-  $('shmass').innerHTML = `${dm >= 0 ? '+' : '−'}${int(Math.abs(dm))} t${tk != null ? ` · ${tk} tankers` : ' · <span class="no">no-go</span>'}`;
+  $('shmass').innerHTML = `${dm >= 0 ? '+' : '−'}${int(Math.abs(dm))} t${tk != null ? ` · ${tk} refuel mission${tk === 1 ? '' : 's'}` : ' · <span class="no">no-go</span>'}`;
 }
 function applyShield() {
   if (data.vehicleParams && !isStar() && !isHist()) resizeAll(data, { ...data.vehicleParams, ...shield });

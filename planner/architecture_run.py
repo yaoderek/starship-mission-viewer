@@ -85,7 +85,7 @@ def build(tgt, mode, o, ret, stay_kind, extra=None):
     else:
         p_all = X.stack_prop([dep, cap_dv, rdv], DRY, [PAY, PAY, PAY])
         if p_all <= CAP: S.update(prop_leo_t=p_all, prop_dest_t=0.0, dest_source="none (single tank load)")
-        else: S.update(prop_leo_t=SHIP.prop_needed_t(dep + cap_dv), prop_dest_t=X.stack_prop([rdv], DRY, [PAY]), dest_source="REQUIRED at destination (prepositioned tanker / depot) - not modelled")
+        else: S.update(prop_leo_t=SHIP.prop_needed_t(dep + cap_dv), prop_dest_t=X.stack_prop([rdv], DRY, [PAY]), dest_source="REQUIRED at destination (prepositioned propellant depot) - not modelled")
     nt = None if S["prop_leo_t"] > CAP else max(0, math.ceil((S["prop_leo_t"] - SHIP.residual_prop_leo_t) / SHIP.tanker_load_t - 1e-9))
     S["tankers_needed"] = nt; S["total_launches"] = None if nt is None else nt + 1
     S["feasible"] = nt is not None and nt <= SHIP.refuels and S["prop_dest_t"] <= CAP and (S["prop_dest_t"] == 0 or land)
@@ -166,7 +166,7 @@ def analyze(m, tgt, regolith):
         add(id="destprop", cat="Departure", title=f"Return needs {S['prop_dest_t']:.0f} t propellant at {tgt.title()}", value=S["prop_dest_t"], unit="t",
             prob=None, level="HIGH", basis="quantitative (rocket eq.)", jd0=ph[1]["jd1"], jd1=ph[1]["jd1"],
             note=("exceeds tank capacity: return impossible with one Starship. " if S["prop_dest_t"] > CAP else "") +
-                 "Single-tank-load from LEO is insufficient; requires a prepositioned tanker or depot at the destination (not modelled).", source="rocket equation, vehicle model")
+                 "Single-tank-load from LEO is insufficient; requires a prepositioned propellant depot at the destination (not modelled).", source="rocket equation, vehicle model")
     ve = min(S["v_entry_earth"], X.EARTH_MAX_ENTRY); runs = [(g, H._fly("earth", ve * 1e3, -g, 0.3)) for g in np.arange(3.0, 12.0, 0.25)]
     nes = [(g, r) for g, r in runs if r["result"] != "escape"]; dsc = [(g, r) for g, r in runs if r["result"] == "impact"]
     q = nes[0] if nes else None; qd = dsc[0] if dsc else None

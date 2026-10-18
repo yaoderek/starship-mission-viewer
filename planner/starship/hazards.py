@@ -121,7 +121,7 @@ def mission_hazards(m, rad, n_crew=12):
     def add(**k): out.append(k)
     nt = S.get("tankers_needed") or 0
     days, d = debris_loiter(nt)
-    add(id="debris", cat="LEO loiter", title=f"Orbital debris during refuelling ({nt} tankers, {days:.0f} d @7 d cadence, ~340 km)",
+    add(id="debris", cat="LEO loiter", title=f"Orbital debris during refuelling ({nt} refuel mission{'' if nt == 1 else 's'}, {days:.0f} d @7 d cadence, ~340 km)",
         value=d["1mm"]["expected"], unit="expected >=1 mm hits", prob=d["1cm"]["p_ge1"], prob_label="P(>=1 cm hit)",
         level="MED" if d["1mm"]["expected"] > 1 else "LOW", basis="quantitative", jd0=jd[0] - days, jd1=jd[0],
         note=f">=3 mm: {d['3mm']['expected']:.2g} expected (may perforate a 4 mm wall without Whipple shielding — qualitative). "

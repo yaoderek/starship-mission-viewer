@@ -72,7 +72,7 @@ export function drawSchematic(cv, spec, time) {
     g.strokeStyle = WHITE; g.lineWidth = 1.3; g.setLineDash([]); g.strokeRect(sx - 3.5, sy - 3.5, 7, 7);
     const S = m.summary;
     label(g, `${m.name} · ${S.launch}`, 10, 16, WHITE);
-    label(g, S.historic ? `${Math.round(S.total_days)} D · C3 ${S.c3.toFixed(1)} KM²/S² · ${S.flybys.length ? S.flybys.length + ' FLYBYS' : 'DIRECT'}` : `${Math.round(S.total_days ?? S.tof_years * 365.25)} D · Δv ${S.dv_total.toFixed(2)} KM/S · ${S.tankers_needed ?? '—'} TANKERS`, 10, h - 10, GREEN_DIM, 'left', 8.5);
+    label(g, S.historic ? `${Math.round(S.total_days)} D · C3 ${S.c3.toFixed(1)} KM²/S² · ${S.flybys.length ? S.flybys.length + ' FLYBYS' : 'DIRECT'}` : `${Math.round(S.total_days ?? S.tof_years * 365.25)} D · Δv ${S.dv_total.toFixed(2)} KM/S · ${S.tankers_needed == null ? '—' : S.tankers_needed} REFUEL MISSION${S.tankers_needed === 1 ? '' : 'S'}`, 10, h - 10, GREEN_DIM, 'left', 8.5);
   } else {
     const tgt = spec.star, tp = starPos(tgt), Rr = tgt.ly * 1.25;
     // rotate the ecliptic projection so the target lies to the right of the Sun
