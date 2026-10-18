@@ -1,0 +1,754 @@
+                                                    IAC-09-A1.4.09
+
+                    Probabilistic Assessment of Radiation Risk for Astronauts in Space Missions
+
+                                                Myung-Hee Y. Kim
+                         Universities Space Research Association, Houston, TX 77058, USA
+                                            myung-hee.y.kim@nasa.gov
+
+                                                  Giovanni De Angelis
+                                       Instituto Superiore di Sanita, Rome, Italy
+                                               giovanni.deangelis@iss.it
+
+                                              Francis A. Cucinotta
+                               NASA Johnson Space Center, Houston, TX 77058, USA
+                                         francis.a.cucinotta@nasa.gov
+
+                                                    ABSTRACT
+Accurate estimations of the health risks to astronauts due to space radiation exposure are necessary for future lunar
+and Mars missions. Space radiation consists of solar particle events (SPEs), comprised largely of medium energy
+protons (less than several hundred MeV); and galactic cosmic rays (GCR), which include high energy protons and
+heavy ions. While the frequency distribution of SPEs depends strongly upon the phase within the solar activity
+cycle, the individual SPE occurrences themselves are random in nature. A solar modulation model has been
+developed for the temporal characterization of the GCR environment, which is represented by the deceleration
+potential, φ. The risk of radiation exposure to hardware as well as to astronauts from SPEs during extra-vehicular
+activities (EVAs) or in lightly shielded vehicles is a major concern for radiation protection. To support the
+probabilistic risk assessment for EVAs, which could be up to 15% of crew time on lunar missions, we estimated the
+probability of SPE occurrence as a function of solar cycle phase using a non-homogeneous Poisson model to fit the
+historical database of measurements of protons with energy > 30 MeV, Φ 30. The resultant organ doses and dose
+equivalents, as well as effective whole body doses, for acute and cancer risk estimations are analyzed for a
+conceptual habitat module and for a lunar rover during space missions of defined durations. This probabilistic
+approach to radiation risk assessment from SPE and GCR is in support of mission design and operational planning
+for future manned space exploration missions.
+
+
+
+1. Introduction                                                 the years 1750 through the one most recently
+                                                                completed (Kim and Wilson, 2000; Kim et al. 2004;
+Space radiation is a concern for astronaut’s health             Kim et al. 2006; Wilson et al. 1999). Because the
+and safety, including risks of cancer, acute radiation          solar activity cycle affects the near Earth
+sickness, and degenerative risks (Cucinotta and                 environment, a correlated quantity of the ground-
+Durante 2006; Durante and Cucinotta 2008). The                  based neutron monitor rate was estimated from the
+galactic cosmic ray (GCR) environment varies by                 resultant projection of sunspot number into the near
+about 2-fold in intensity over the approximately 11-            future. The quantity of interest for radiation
+year solar cycle. Crew return vehicle design and                protection, the GCR deceleration potential φ has
+dose limit constraints implemented by NASA                      been calculated using the estimated neutron monitor
+(NCRP, 2000; Cucinotta and Durante, 2006),                      rate. The GCR radiation environment was estimated
+necessitate prediction of the long-term behavior of             as a function of φ by using GCR predictive models
+solar cycle activity for future projections of radiation        (Badhwar and O’Neill, 1992; Badhwar et al. 1994;
+dose to astronauts onboard the International Space              Lopate and Simpson, 1991; Nymmik et al. 1996;
+Station (ISS) and on missions to the moon and Mars.             O’Neill, 2006; Wilson et al. 1999).
+Solar cycle forecasting, even using the sophisticated           Solar particle events (SPEs) occur quite often, and it
+methods discussed by Withbroe (1989) is not                     is difficult to predict their onset and size. Most SPEs
+sufficiently accurate, due to the lack of quantitative          would lead to small crew doses even for light
+theories for solar activity cycles. A statistical model         spacecraft or EVA shielding, and only a small
+was developed as an analysis tool using the                     proportion (about 10%) of events lead to significant
+accumulated sunspot data for the numbered cycles for            organ doses of >10 mGy-Eq. However, many small
+events can disrupt or delay mission operations               fluence measurements (Kim et al. 2007). The defined
+leading to excessive costs. For space missions with          differential energy spectra of SPE and GCR were
+longer duration, multiple exposures to SPEs with             propagated through spacecraft and body tissue to
+intense particle fluxes and high energy levels are the       specified body organs by using NASA’s space
+major concern. Although the risk of early effects            radiation transport models, BRYNTRN (Cucinotta et
+may be small due to the reduction of dose-rates              al. 1994; Wilson et al. 1989) for SPE, and HZETRN
+behind shielding (Hu et al. 2009), there remains a           (Wilson et al. 1991,1995) with QMSFRG database
+significant cancer risk for some events (Cucinotta           (Cucinotta et al. 2006) for GCR, respectively.
+1999; Cucinotta and Durante 2006; Durante and                We analyzed blood forming organ (BFO) doses for
+Cucinotta 2008). A record of occurrence times and            the comparison of the shielding effectiveness of
+proton fluence levels >30 MeV, Φ 30, for 370 events          aluminum and polyethylene for exposure to
+was gathered over 5 solar cycles, spanning the years         historically large SPEs; and we estimated organ doses
+1954 to present. From the analysis of SPEs over the          and dose equivalents inside a spherical spacecraft of
+past 5 solar cycles, the association between SPE             5 g/cm2 aluminum for 30-month Mars mission from
+occurrence and solar activity has been studied, but          GCR at solar minimum. Contributions of different
+without recognizable pattern in each of the solar            charge groups, overall projectile, and target
+cycles (Goswami et al. 1988; Kim et al. 2005; Kim et         fragmentation were described; and we compared
+al. 2006).                                                   those with the preliminary dose limits to examine the
+For the planning of a worst-case scenario of staying         possibility of detrimental effects. With the
+on the moon or Mars, a probability distribution              consideration of detailed shielding properties
+function for SPE occurrence was formed from the              provided by a conceptual lunar habitat model, the
+available database of SPE proton fluence                     probabilistic assessment of radiation cancer risk,
+measurements. The cumulative probabilities of SPEs           which is dependent on age, gender, and solar
+during short-period missions were defined using the          modulation, was calculated at the upper 95%
+proton fluences of the continuous SPE database (Kim          confidence interval (CI) for a 1-yr lunar mission. For
+et al. 2007). The random behavior of SPE                     the optimization of shield mass and dose reduction
+occurrences was examined using a probabilistic               during EVA on the lunar surface, radiation analyses
+approach in order to insure crew protection and              were made for conceptual lunar rover configurations.
+planning of future lunar and Mars stays (Kim et al.          Using the risk mitigation method for candidate
+2009a). The number of SPEs in a given window of              spacecraft designs, the proper shielding requirements
+time was treated as a non-homogeneous Poisson                for crew members can be identified for future
+distribution with mean depending on the end points           exploration mission scenarios.
+of the window. In addition, the mean number of
+proton events of a given threshold event size with
+energy exceeding 30 MeV over some arbitrary time             2. Observed space quantities for statistical models
+window was estimated for a future non-specific solar
+cycle. The derivative of this mean was modeled as a          The official monthly averaged sunspot number
+parametric function of time within the cycle, and the        (formerly the Zurich sunspot number), which is
+mean for a particular window was estimated by                provided by the Sunspot Index Data Center,
+making use of all the SPE data, including those              Observatoire Royal de Belgique, in Brussels, was
+outside the window of interest. This model-based             obtained from the National Geophysical Data Center
+estimate was considerably more accurate than one             (NGDC), U.S. Dept. of Commerce, NOAA, Boulder,
+based on simple counting of historical events within         CO, for the years 1750 through the present, and
+the window, and a goodness-of-fit test verified that         categorized into odd and even cycles. There is no
+the model indeed provided a reasonable                       immediately obvious pattern in the cycles other than
+representation of the SPE data in the space era (Kim         a variation of the 10- to 13-year cycle period. The
+et al. 2009a). From the prediction of the mean               cycles exhibit fluctuating amplitudes, differing
+number of SPEs with integral fluence ( Φ 30)                 minima and maxima, and variable shapes.
+exceeding given thresholds, the cumulative                   The cosmic ray data from neutron monitors at the
+probabilities of SPE frequencies and total proton            Deep River neutron monitor site (longitude 46 ° N,
+fluences at various percentiles during a given mission       latitude 77 ° W, 145-m altitude, and cutoff rigidity of
+period were defined (Kim et al. 2009a).                      1.02 GV) were obtained from NGDC for the
+For the radiation risk analysis, analytic                    measurement starting January 1958 to December
+representations of energy spectra of large events            1994, which covers cycles from the second half of
+extending over broad energy ranges out to 1 GeV              cycle 19 through 22. There appears to be a
+were fitted by Weibull-distributions to the proton           reasonably well-established pattern of count rates and
+
+                                                         2
+sunspot numbers, even though cycle 20 is nearly           value as a function of time allows us to project GCR
+independent due to the halt of the declining phase in     environments into the near future.
+years of 1971 and 1972. However, clear differences
+between odd and even cycles have been shown in the                                                   GCR Deceleration Potential
+
+
+relationship between count rates and sunspot                    1800
+
+numbers.                                                        1600
+
+All available proton flux and fluence data of solar             1400
+particle events (SPEs) for solar cycles 19-21 (1955-
+                                                                1200
+1986) were assembled in the form of a continuous
+database (Shea and Smart, 1990). From 1986 to 2007         f 1000
+(solar cycles 22 and 23), a SPE list and the GOES               800
+
+spacecraft measurements of the 5-minute average                 600
+
+integral proton flux were obtained directly from                400
+NGDC. The SPE event-sizes of proton fluences > 30               200 iT,,T'nT,,T',,
+MeV (Φ30) for solar cycles 19-21 were taken from                  1950 1955 1960 1965 1970 1975 1980 1985 1990 1995 2000 2005 2010 2015 2020
+
+the Shea and Smart (1990), and those for solar cycles                                                                Year
+
+                                                          Fig. 1: GCR deceleration parameter as a function of time
+22 and 23 were calculated using the extensive direct
+                                                               calculated from a statistical model.
+GOES satellite particle measurements of integral
+proton fluxes. Between the years 1561 and 1950, 71        The average GCR deceleration parameters for the
+                       9            -2
+SPEs with Φ 30 > 2×10 protons cm (McCracken et
+                                                          possible mission durations of 6, 20, and 30 months
+al. 2001) were also identified from impulsive nitrate     are shown in Fig. 2, assuming the mission started at
+enhancements in polar ice cores.                          any given time in a solar cycle, and lasted for the
+                                                          successive months of a given mission duration. Since
+                                                          it is impossible to predict whether a future mission
+3. Space radiation environment projections using          will take place in a cycle similar to any of previous
+statistical models                                        solar cycles on record, the average values are
+                                                          combined to estimate an overall cumulative
+3.1 GCR deceleration parameter projection using a         probability distribution in Fig 3, by which the
+solar cycle statistical model                             percentile rank of the average interplanetary space
+                                                          radiation environment was represented for a given
+The solar cycle projections were related to the GCR       mission duration. The GCR energy spectra for all of
+deceleration parameter, ^(t), which was correlated        the elements at a given distance from the Sun were
+with neutron monitor data to represent the temporal       derived from Badhwar and O’Neill’s model (1992).
+GCR environment in interplanetary space. Future           In this model, a single input value of ^(t) describes
+solar cycle activity levels up to the year 2020 were      the strength of the Sun’s magnetic field with solar
+calculated using a statistical model for solar cycle
+                                                          minimum at 428 MV and solar maximum at ^ > 1,000
+projection, which was developed using the observed        MV.
+sunspot data (Kim and Wilson, 2000; Kim et al.,
+2004, 2006; Wilson et al., 1999). The odd and even               1800          .      .          .       .                           .    .•
+cycles are treated separately because each possibly
+depends upon the orientation of the solar dipole                 1600
+
+
+moment, reversing between even and odd cycles                    1400
+(Hale 1908; Babcock 1961; Noyes 1982; Withbroe
+1989). The projections of sunspot numbers in the            >    1200
+                                                            f
+rising and declining phases of a cycle were also made                                                                                            n   6-month
+                                                            3                                                                                        20-month
+separately from two distinct correlation patterns                1000
+                                                                                                                                                     30-month
+
+(Wilson et al. 1999).                                             800
+
+In interplanetary space, the constant flux of GCR
+outside of the Earth’s magnetic field delivers a steady           600
+
+
+although low-level dose rate to astronauts. The
+                                                                  400
+variation of the GCR flux intensity over the                            1950   1960       1970        1980          1990    2000   2010   2020
+
+approximately 11-year solar cycle, which is due to                                                           Year
+
+
+
+the interplanetary plasma resulting from the              Fig. 2: The average GCR deceleration parameters, 0 bar, for
+expanding solar corona, is shown as the GCR                    mission periods of 6, 20, and 30 months, as if a mission
+                                                               started at any time in a solar cycle and lasted for successive
+deceleration parameter in Fig. 1. The calculated               months of a given mission duration.
+                                                                                                     SPE occurrences themselves are random in nature.
+                                                                                                     The onset dates of a total of 370 SPEs during solar
+                                                                                                     cycles 19–23 are marked in the top of Fig. 5 as brown
+      0.8                                                                                            vertical lines. More frequent SPE occurrences are
+                                                                                                     shown as dense vertical lines, which are located
+      0.6
+                                                                                                     typically near the middle of cycles. Large enough
+                                                                                      6-month
+                                                                                                     SPEs with proton fluencies at energy > 30 MeV, 0 30
+      0.4
+                                                                                      20-month       > 1 X 10 7 protons cm- 2 , are also shown in Fig. 5. Other
+                                                                                      30-month
+                                                                                                     than a general increase in SPE occurrence with
+                                                                                                     increased solar activity, recent solar cycles have
+      0.2
+                                                                                                     yielded no recognizable pattern of when and how
+                                                                                                     large individual SPEs occur (Goswami et al. 1988;
+       0                                                                                             Kim et al. 2005). There have been several
+            450   650       850      1050          1250   1450        1650
+
+                                       0 bar, MV
+                                                                                                     occurrences of intense SPEs during solar active
+Fig. 3: Cumulative probability distribution of the average GCR                                       years, which are typically 2.5 years before and 4.5
+      deceleration parameters (using the same data in figure 2) for                                  years after solar maximum. The data in Fig. 5 lead to
+      mission periods of 6, 20, and 30 months.                                                       the observation that individual SPE size is randomly
+                                                                                                     distributed.
+
+ 3.2 Prediction of SPE frequency for a non-specific
+future cycle                                                                                                E+11
+                                                                                                                                       SPE onset date
+
+
+
+                                                                                                           1. E+10
+
+
+The 370 SPEs identified during solar cycles 19–23                                                          1. E+09
+
+
+varied significantly in the overall distribution of Φ 30                                                   1. E+08
+
+
+
+from cycle to cycle. However, fluence data of Φ 30
+                                                                                                            E+07
+                                                                                                            E+10
+
+were combined over all 5 cycles to estimate an                                                              E+09
+
+overall probability distribution of an average cycle.
+Fig. 4 shows sample cumulative probabilities of Φ 30
+                                                                                                            E+08
+
+
+
+for cycles 19-23 and the overall cumulative                                                                 E+07
+                                                                                                             E+10
+
+
+
+probability (thick line without centered symbol).                                                                    19        20            21         22          23
+                                                                                                            E+09
+
+Also included in Fig. 4 are the probabilities of the
+impulsive nitrate events of 71 SPEs with Φ 30 > 2×10 9                                                      E+08
+
+
+
+
+protons cm-2 (McCracken et al. 2001) with and                                                               E+07
+
+
+
+
+without seasonal correction, and they are not
+significantly different from the modern sets of large
+Φ 30 data (Shea and Smart, 1990).                                                                    Fig. 5: SPE onset date marked as vertical lines in the top of the
+                                                                                                           figure; and large SPEs recorded during 5 modern solar cycles
+                                                                                                           having integral proton fluences of 0 30, 060, and   > 1X10 7
+                                                                                                                                                             0100
+
+                                                                                                          protons cm -2 for energies > 30, > 60, and > 100 MeV,
+                                                                                                          respectively.
+      0.8
+
+
+
+      0.6
+                                                                                                     The integral fluences at high proton energies, 0 60 and
+ IL                                                                                                  0 100,  for some recorded SPEs are not always
+      0.4                                                                                            available. For cycle 21, there are no recorded
+                                                                                                     measurements of large SPEs at high energies, as seen
+      0.2                                                                                            in the middle and bottom of Fig. 5. Simply, those
+                                                                                                     high energy particles might not exist at all in cycle
+       0                                                                     m ^^^                   21, and the cycle was quiet compared to other cycles
+       1.E+04      1.E+05         1.E+06       1.E+07        1.E+08          1.E+09    1.E+10
+                                           Event Size, 030                                           shown in Fig. 5. Indeed the SPEs in cycle 21 can be
+Fig. 4: Probability of an SPE event exceeding the displayed                                          characterized as having ‘soft spectra’, i.e., those SPE
+     threshold 0 30 (combined data of space era is thick line; data                                  for which the high energy portion of the spectrum
+     for each cycle is a solid line with a centered symbol;                                          falls off rapidly. With this limitation, data from 1986
+     impulsive nitrate events with and without seasonal correction                                   to the present (solar cycles 22 and 23) were used for
+     have symbol only displayed).
+                                                                                                     the simulation of distributions of 0 60 and 0 100 for a
+While the expected frequency of SPEs is strongly                                                     given mission period. In that way, the simulation of
+influenced by the phase of the solar activity cycle, the                                             proton fluences at those energies would be the best
+
+
+                                                                                                 4
+available and reliable estimations for the crew            various media, such as spacecraft, equipment, the
+protection.                                                tissue equivalent material, and any other media on the
+For the random nature of SPE occurrences and event         path of the ray. Each separate medium’s thickness
+sizes, a probabilistic approach of modeling was            distribution along a ray surrounding a specific organ
+developed using the recorded SPE database of proton        at a specific position inside a spacecraft can be
+fluence measurements of 030 that have occurred             generated using the ray tracing model (Ponomarev et
+during the past 5 solar cycles (Kim et al. 2009a).         al. 2007; Nounu et al. 2009), which uses an evenly
+First, the expected number of SPEs for a given             spaced distribution of the given number of rays over
+mission period was estimated from a non-                   a 4n solid angle. For astronaut’s organ dose and dose
+homogeneous Poisson process model, for which a             equivalent assessments, the human body geometry is
+non-constant hazard function has been defined to                            th
+                                                           based on the 50 percentile United States Air Force
+represent the propensity of SPE occurrences in the         male/female in the standing position used by the
+space era. Then, the distribution of proton fluence        Computerized Anatomical Man/Female model,
+for each event occurrence was simulated with a             CAM/CAF, respectively (Billings and Yucker, 1973).
+random draw from a Gamma distribution at three             The effective dose, E, is defined as the sum of
+proton energies, > 30, > 60, and > 100 MeV. With an        weighted equivalent doses over specified tissues and
+estimated frequency of SPEs, total fluences from           organs of the body. The organ dose equivalent is
+multiple SPEs during a given mission period were           determined as an average of equivalent doses over all
+defined, ranging from the 5 th to 95 th percentile.        points in the organ or tissue, and the National
+                                                           Council for Radiological Protection (NCRP) adopted
+                                                           the organ dose equivalent as an acceptable
+4.   Radiation transport codes and various                 approximation for equivalent dose for space radiation
+dosimetric quantities                                      (NCRP, 2002). Therefore, the organ dose
+                                                           equivalents with the corresponding tissue/organ
+To predict the propagation and interaction of the          weighting factors, wT (ICRP, 2007), were used for the
+nucleons and heavy ions passing through various            approximation of the effective dose for stochastic
+media, the galactic cosmic ray transport code,             effects from space radiation (NCRP, 2000, 2002).
+HZETRN (Wilson et al., 1995), and the Baryon               For the deterministic acute effects, the quality factors
+transport code for SPE, BRYNTRN (Cucinotta et al.,         for the dose equivalent generally overestimate the
+1994), are used. These codes include the transport of      relative biological effectiveness (RBE), and NCRP
+nucleons and high-energy heavy ions up to an atomic        (2000) has recommended that risks for non-cancer or
+number Z of 28 for HZETRN, and high-energy light           deterministic effects be made in terms of an alternate
+particles with atomic number Z < 2 as well as              dose quantity denoted as the Gray-Equivalent (Gy-
+neutrons (n, p, d, t, h, and a) for BRYNTRN. These         Eq). This quantity uses radiation field dependent
+codes solve the fundamental Boltzmann transport            RBE for specific components, because distinct
+equation. To evaluate the flux of particles of type j      radiation quality functions occur for acute radiation
+with energy E, the input database consists of the          risks and cancer. For the estimation of organ dose
+stopping power, the macroscopic total nuclear cross        from space radiation, the new dosimetric quantity of
+sections, and the differential nuclear-interaction cross   Gray-Equivalent was implemented using the NCRP’s
+sections. These data are compiled in BRYNTRN               RBE (2000) together with the suggested definition of
+(Cucinotta et al., 1994) and for HZETRN (Wilson, et        neutron RBE (Wilson et al. 2002) for a full definition
+al., 1995) using QMSFRG (Cucinotta et al. 2006).           of total RBE. Table 1 show the RBE as given by
+The absorbed dose is the energy deposited at a given       NCRP and the suggested RBE values for neutron
+location x by all particles. For human exposure, the       fields.
+dose-equivalent is defined by the quality factor Q,
+which relates the biological damage incurred from                                                 RBE value
+                                                               Particle type
+                                                                                           NCRP                    Wilson et al.
+any ionizing radiation to the damage produced by g-          <1 MeV neutrons        RBE (fission neutrons)             5.0
+rays. In general, Q is a function of linear energy           1-5 MeV neutrons                6.0
+transfer (LET), which depends on both particle type         5-50 MeV neutrons                3.5
+and energy. For dose equivalent calculations, the           >25 MeV neutrons       RBE (not more than those             3.5
+                                                                                    of 1-25 MeV neutrons)
+quality factors used are those defined by the                >2 MeV Protons                   1.5
+International Commission on Radiological Protection         Heavy ions (helium,              2.5
+in 1990 (ICRP, 1991).                                      carbon, neon, argon)
+Organ dose and dose equivalent assessments at a            Heavy ions, all others              2.5
+                                                           Table 1: Particle RBE (NCRP, 2000) and the RBE for neutrons
+specific anatomical location are calculated using the           suggested by Wilson et al. (2002) for deterministic effects.
+particle fluxes for given number of rays that traverse
+                                                                                                                                      (a)
+                                                                                                                                        Aluminum
+                                                                                               1000
+5. Results and discussion
+                                                                                                        NASA 30-d limit                                                              ___   _____
+5.1 BFO dose assessment from large SPE exposure                                                100 -
+                                                                                                        at BFO
+                                                                                                                          ---                        ---    _                    -
+                                                                                                                                                                               ­T T ^.-
+                                                                                                                                                                             ..^
+
+during interplanetary transit
+                                                                                           E
+For SPEs, the possibility of acute risk exists for a                                       8
+                                                                                                 10
+
+blood-forming organ (BFO) dose over 500 mGy-Eq.                                            0
+                                                                                           m
+Such dose levels could occur from a SPE if the crew                                                                                       • - - —
+                                                                                                  1 -                     J                                                          —       ••-
+is in a thinly shielded spacecraft or during an EVA
+(Hu et al., 2009). Dose limits for non-cancer
+radiation effects at BFO occur at doses below the                                               0.1                                rT^
+threshold for prodromal effects. The current NASA                                                1.0E+06                        1.0E+07                                1.0E+08               1.0E+09
+
+30-day limit is 250 mGy-Eq (NRC/NAS, 2008). The                                                                                           Φ   100,
+                                                                                                                                                     Protons cm
+                                                                                                                                                                  -2
+
+
+
+
+BFO dose was assessed with the full energy spectrum
+of historically large SPEs inside aluminum and                                                                                       (b)Polyethylene
+                                                                                               1000 r
+polyethylene shielding materials with a spherical
+structure of 10 g/cm2-thickness in Fig. 6a and b; and
+15 g/cm2-thickness in Fig. 7a and b. They are a                                                100
+function of proton fluence above energies greater
+than 100 MeV, Φ 100.                                                                       E
+                                                                                                 10
+                                                                                           p
+                                                                                           u
+                                                                                           3
+                                 (a) Aluminum                                              O
+       1000
+
+
+
+
+        100
+                                                                                                0.1
+                                                                                                 1.0E+06                        1.0E+07                                1.0E+08               1.0E+09
+                                                                                                                                          Φ
+  3.
+  E                                                                                                                                                               -2
+
+  E                                                                                                                                           100,
+                                                                                                                                                     Protons cm
+
+  u 10
+  8
+  'o
+                                                                                         Fig. 7: BFO dose vs. Φ100 of historically large SPEs inside a 15
+                                                                                              g/cm2 of sphere in interplanetary space: (a) Aluminum and
+                                                                                              (b) polyethylene. The best linear fit regression line is shown,
+                                                                                              along with 90% tolerance limits. The current NASA 30-day
+                                                                                              limit at BFO is shown as the horizontal dashed line.
+        0.1 ;
+         1.0E+06           1.0E+07                                  1.0E+08    1.0E+09
+                                     Φ   100,
+                                                Protons cm
+                                                              -2
+
+
+
+                                                                                         These data appear to be reasonably defined by a
+                                (b) Polyethylene                                         linear trend on a log-log scale, included as a solid line
+       1000                                                                              in the figures. The assumed Gaussian distribution of
+                                                                                         BFO dose around the regression line is attributable to
+                                                                                         variability of SPE energy spectra. Vertical lines
+                                                                                         represent a range from the 5 th to the 95 th percentiles
+       100
+
+
+                                                                                         of the distribution of BFO dose for future SPEs as a
+  8
+         10                                                                              function of Φ 100. Included in the figure is the current
+  0                                                                                      NASA 30-day limit at the BFO (horizontal dashed
+                                                                                         line). Shielding effectiveness of polyethylene was
+                                                                                         compared to aluminum for BFO dose reduction.
+                                                                                         Polyethylene gave a reduction of 33 ± 11% and 39 ±
+        0.1 ;                                                                            12% relative to aluminum at thicknesses of 10 and 15
+         1.00E+06         1.00E+07                                 1.00E+08   1.00E+09   g/cm2, respectively.
+                                     Φ                       -2
+
+                                         100,
+                                                Protons cm
+                                                                                         Using this fitted regression model, the probabilities
+Fig. 6: BFO dose vs. Φ100 of historically large SPEs inside a 10                         of exceeding the NASA 30-day limit of BFO dose for
+     g/cm2 of sphere in interplanetary space: (a) Aluminum and
+     (b) polyethylene. The best linear fit regression line is shown,
+                                                                                         aluminum, water, and polyethylene were calculated
+     along with 90% tolerance limits. The current NASA 30-day                            as a function of Φ 100, and they are shown in Fig. 8.
+     limit at BFO is shown as the horizontal dashed line.                                In case of a SPE with an excess of higher energy
+                                                                                         protons, the probability increases rapidly as a
+                                                                                         function of the integral fluence of Φ 100 as illustrated
+
+                                                                                     6
+in Fig. 8. Risk assessment can be more directly                                     shielding materials, and lunar topology of lunar crater
+determined by protons with higher energies (Kim et                                  and cliff.
+al. 2009b). Solar spectral forms based on the
+measurements of high energy protons beyond 100
+MeV are critical to the accurate assessment of                                                        Effective dose from August 1972 SPE inside Lunar Rover
+                                                                                                                -2 Astronauts in Vertical Orientation -
+radiation risk from SPEs. From this, it is clear that                                  1200
+the measurement of fluences of the high energy                                         1050
+protons should become a requirement, in order to
+                                                                                        900
+lower the false-alarm rate of a warning system.
+                                                                                        750
+
+                                                                                        600
+
+    1                                                                                   450
+
+                                                                                        300
+
+                                                                                        150
+  0.8                                                           m   2
+
+
+
+
+                                                                                              0 .8 g/cm2    1 g/cm2      2 g/cm2       5 g/cm2   10 g/cm2
+
+                                                                10 g/cm         2
+                                                                                                              Aluminum cabin shell thickness
+  0.6
+                                                                                    Fig. 9: Effective dose analysis of lunar rover concept with water
+                                                                /cm     2
+
+                                                                                          shield augmentation for optimization of shield mass and
+  0.4                                                                                     effective dose reduction. NASA limit of 150 mSv for design
+                                                                g/cm    2
+                                                                                          requirement is shown as horizontal line.
+                                                                 15 g/cm        2
+
+
+
+
+                                                                g/cm        2
+
+
+
+
+  0.2
+
+
+
+                                                                                     5.3 Effective dose contribution by each charge group
+    0
+   1.00E+07                           1.00E+08                  1.00E+09            from GCR at solar minimum
+                               Φ   100,
+                                          protons cm
+                                                       -2
+
+
+
+
+Fig. 8: Probability of exceeding the NASA 30-day limit of BFO                       Annual effective doses from GCR at solar minimum
+      dose for a given fluence level ( Φ100 MeV) inside aluminum,                   in interplanetary space (blue) for males are calculated
+      water, and polyethylene of 10 and 15 g/cm 2 thicknesses in                    in Fig. 10 for various charge groups inside a
+      interplanetary space.
+                                                                                    spacecraft of 5 g/cm2 aluminum. In interplanetary
+                                                                                    space, the dose contribution of various GCR charge
+                                                                                    groups and their secondaries is considerable. These
+5.2 Effective dose analysis for rover design concept                                heavy nuclei are a concern for radiation risks,
+on lunar surface                                                                    because they have the highest biological
+                                                                                    effectiveness and leave columns of damage at the
+Up to 15% of crew time may be spent in extra-                                       molecular level as they traverse a biological system.
+vehicular activities (EVAs) on lunar missions. The                                  A plausible mitigation method by shielding is
+major constraint for lunar surface mission is the time                              impossible due to the high penetration power of
+required to return to shelter for a short-term warning                              energetic particles of GCR.
+of SPE onset. A rover may be the only shelter in the                                On the Martian surface, the interplanetary GCR
+worst case of being far away from a habitat. For the                                fluxes at solar minimum were propagated through its
+EVA strategy development considered by NASA, an                                     atmosphere of 16 g/cm2 carbon dioxide. The annual
+administrative dose limit is set at 150 mSv for the                                 effective doses for males are shown in the same
+rover design requirement to protect against a large                                 figure for the Martian surface (red) from GCR where
+1972-type event. Fig. 9 shows the radiation dose                                    radiation protection by Martian atmospheric shielding
+analysis of a conceptual lunar rover from the August                                and the shadow effect of Mars itself was included.
+1972 SPE. It shows the reduction of effective dose                                  Also shown in the figure is the estimate of effective
+(E in mSv) by increasing cabin shell thickness to 5                                 dose for males during a 30-month Mars mission
+g/cm2 from the initial 0.8 g/cm2 of aluminum to meet                                (green), which includes interplanetary transit to/from
+the design requirement for the configuration of 2                                   Mars for 6-months each way, and a Mars surface stay
+astronauts sitting in vertical orientation inside a                                 for one and a half years. The total effective dose was
+rover. Greater reduction was achieved by adding 5                                   estimated to be about 1 Sv for male crew members
+g/cm2 of water-augmentation shielding inside a rover                                inside a 5 g/cm2 of aluminum sphere at solar
+of 1 g/cm2 cabin thickness. For the best protection,                                minimum.
+parametric optimization analysis should consider the
+astronauts’ sitting orientation, multi-functional
+
+                                                                                7
+                 n Interplanetary space         Mars surface     n 30-month Mars mission                       NASA as the quantity for setting age and gender
+  1000
+                                                                                                               specific career dose limits. Career exposure to
+   900                                                                                                         radiation is limited by NASA as not to exceed 3%
+   800                                                                                                         REID from fatal cancer. NASA policy is to assure
+   700                                                                                                         that this risk limit is not exceeded at the 95%
+   600
+                                                                                                               confidence level, using a statistical assessment of the
+   500
+                                                                                                               uncertainties in the risk projection calculations to
+                                                                                                               limit the cumulative effective dose received by an
+   400
+                                                                                                               astronaut throughout his or her career. These limits
+   300
+                                                                                                               are applicable to missions in low Earth orbit (LEO)
+   200                         . .        . .
+                                                                                                               of any duration and to lunar missions. Non-cancer
+   100                                                                                                         mortality risks and approaches to reducing
+     0                           .,
+                                 ^                                                                             uncertainties in cancer risk projection models must be
+                           Z=1        Z=2         Z=3-10       Z=11-20    Z>21
+              Neutron                                                              Projectile    Target
+                                                                                                fragment
+                                                                                                               considered further for longer missions outside LEO.
+                                                    Radiation type                                             The whole body effective dose defined as a
+Fig. 10: Effective dose of each charge group, overall projectile of                                            summation over radiation types and organ/tissues
+      GCR, and target fragmentation inside a spherical spacecraft                                              using the tissue weighting factors, wT (ICRP, 2007),
+      with 5 g/cm2 aluminum: Annual exposure in interplanetary                                                 was calculated in Table 3 for inside a storm shelter of
+      and on Mars surface; and that for 30-month Mars mission.
+                                                                                                               a conceptual lunar habitat from the exposure to the
+                                                                                                               GCR and SPE for 180-day lunar mission. Based on
+Career dose limits, which correspond to a 3% risk of                                                           the probabilistic risk assessment for a conceptual
+cancer mortality for a 10 year career, are                                                                     lunar habitat, we observed that the timeline for future
+recommended by the National Council on Radiation                                                               long-term lunar and Mars missions would be
+Protection and Measurements (NCRP, 1989 and                                                                    preferably at solar maximum rather than at solar
+2000) and are shown in Table 2. The estimation in                                                              minimum, because the storm shelter for SPE was not
+Fig. 10 of effective dose for a 30-month Mars                                                                  effective for GCR exposure. A judiciary decision to
+mission exceeded the career limit of a 35-year old                                                             add a well-shielded region inside the habitat as well
+male astronaut, (0.9 Sv of the NCRP limit (2000)).                                                             as other medical treatments is required to lower the
+When a vehicle geometry and a Mars mission                                                                     possibility of exceeding the acceptable level of 3% at
+scenario are defined in detail, the probabilistic risk                                                         the upper 95% confidence interval.
+assessment would be made accurately for the
+protection of astronauts. By using various levels of                                                                              Solar Minimum                Solar Maximum
+particle intensities of the GCR environment as in Fig.                                                                            Male     Female            Male         Female
+3, the range of risk can be assessed.                                                                                                                        72.1           72.6
+                                                                                                                                                          (median)       (median)
+                                                                                                                  Effective
+                                                                                                                                     152        152          157.1          155.5
+                                                                                                                  dose, mSv
+                                                                                                                                                            (upper         (upper
+                    NCRP Report No. 98 NCRP Report No. 132                                                                                                95% CI)        95% CI)
+                          (Sv)                 (Sv)                                                                Age, yr                 %REID Carcinogenesis
+                                                                                                                            35 0.58          0.72         0.28           0.35
+     Age                Male          Female                   Male          Female                                         40 0.52          0.64         0.25           0.31
+                                                                                                                Median      45 0.45          0.54         0.22           0.26
+         25             1.5                 1.0                0.7               0.4
+                                                                                                                            50 0.39          0.46         0.19           0.22
+         35             2.5               1.75                 0.9               0.6                                        55 0.33          0.39         0.16           0.19
+                                                                                                                            35     2.3        2.8          1.7            2.1
+         45             3.25              2.5                  1.5               0.9                                        40     2.1        2.5          1.6            1.9
+                                                                                                                 Upper
+                                                                                                                            45     1.8        2.1          1.3            1.6
+         55             4.0               3.0                  2.9               1.6                            95% CI
+                                                                                                                            50     1.5        1.8          1.2            1.4
+Table 2: Career dose limits corresponding to 3% cancer mortality                                                            55     1.3        1.5          1.0            1.2
+     for 10 year careers as a function of age and sex. (NCRP,                                                  Table 3: %REID carcinogenesis for 180-d lunar mission at storm
+     1989 and 2000).                                                                                                shelter inside a conceptual lunar habitat.
+
+
+
+                                                                                                               6. Concluding remarks
+5.4    Probabilistic risk assessment for cancer
+mortality from space radiation                                                                                 The future space radiation environment, including the
+                                                                                                               GCR environment and the event-integrated fluence of
+Lifetime cancer mortality described as risk of                                                                 SPEs, was estimated using the statistical models,
+exposure induced death (REID) is employed by                                                                   which were developed according to the observed
+                                                                                                               space databases. For the planning of future missions,
+
+                                                                                                           8
+organ dose and dose equivalent, and effective doses        Cucinotta, F.A., Wilson, J.W., Badavi, F.F. Extension
+were analyzed for various shield design                        to the BRYNTRN code to monoenergetic light
+specifications. The cancer risk assessments of a lunar         ion beams. NASA TP-3472, 1994.
+mission with 95% confidence interval showed the            Cucinotta, F.A. Issues in risk assessment from solar
+age, gender, and solar cycle dependence from the risk          particle events. Radiat. Meas., 30, 261-268,
+projection models. It was concluded that future space          1999.
+missions should be launched at solar maximum rather        Cucinotta, F.A. and Durante, M. Cancer risk from
+than at solar minimum to minimize the possibility of           exposure to galactic cosmic rays: implications
+exceeding the acceptable 3% REID at the upper 95%              for space exploration by human beings. Lancet
+confidence interval. To protect crew members on a              Oncol., 7, 431-435, 2006.
+surface mission, the dose reduction below the              Cucinotta, F.A., Wilson, J.W., Saganti, P., Hu, X.,
+exposure limit of 150 mSv for rover design                     Kim, M.Y., Cleghorn, T., Zeitlin, C., Tripathi,
+requirement was achieved by augmented multi-                   R.K. Isotopic dependence of GCR fluence
+functional shielding mass, i.e., water for life support,       behind shielding. Radiat. Meas., 41, 1235-1249,
+thermal control, and shielding.                                2006.
+Probabilistic risk assessment can be applied for the       Durante, M., and Cucinotta, F.A., Nature Rev.
+estimation of the effectiveness of the risk mitigation         Cancer (2008).
+methods, including the candidate spacecraft designs        Eddy, J. A., The Maunder minimum. Science, 192,
+and mission timelines, as well as the definition of the        no. 4245, 1189-1202, 1976.
+proper shielding requirements and identification of        Goswami, J.N., McGuire, R.E., Reedy, R.C., Lal, D.,
+future exploration mission scenarios. The results can          Jha, R. Solar flare protons and alpha particles
+be applied to the development of approaches to                 during the last three solar cycles. J. Geophys.
+improve radiation protection of astronauts and to the          Res. 93(A7), 7195-7205, 1988.
+optimization of mission planning for future space          Hale, G. E. Magnetic field in Sun-spots. Astrophys.
+missions.                                                      J., 28, 315–343, 1908.
+For the probabilistic assessment of radiation risk         Hu, S., Kim, M.Y., McClellan, G.E., and Cucinotta,
+from SPEs during a given mission period and a                  F.A., Modeling the Acute Health Effects of
+defined shielding configuration, the simulation must           Astronauts from Exposure to Large Solar
+take into account not only the randomness of SPE               Particle Events, Health Physics Journal, 96(4),
+occurrences and total proton fluence, but also the             465-476, April 2009.
+variation of energy spectra of the SPEs, because the       ICRP, 1990 Recommendations of the International
+detailed energy spectrum is the important parameter.           Commission on Radiological Protection. ICRP
+Because there is a very limited theoretical basis for          Publ. 60, Pergamon Press Inc., 1991.
+spectral fits to SPEs, the measurements of proton          ICRP Publication 103: The 2007 Recommendations
+fluences at E > 100 MeV emitted during SPEs are                of the International Commission on Radiological
+required for an accurate risk assessment.                      Protection, Annals of the ICRP, vol. 37/2-4,
+                                                               2007.
+                                                           Kim, M. Y., Wilson, J. W. Examination of solar
+References                                                     cycle statistical model and new prediction of
+                                                               solar cycle 23. NASA/TP-2000-210536, 2000.
+Babcock, H. W. The topology of the Sun’s magnetic          Kim, M. Y., Wilson, J. W., Cucinotta, F. A., An
+    field and the 22-year cycle. Astrophys. J., 133,           improved solar cycle statistical model for the
+    no. 2, 572–587, 1961.                                      projection of near future sunspot cycles.
+Badhwar, G. D., O’Neill, P. M., Improved model of              NASA/TP-2004-212070, 2004.
+    galactic cosmic radiation for space exploration        Kim, M.Y., Hu, X., Cucinotta, F.A. Effect of
+    missions. Nucl. Tracks & Rad. Meas., 20, no. 3,            shielding materials from SPEs on the lunar and
+    403-410, 1992.                                             Mars surface, American Institute of Aeronautics
+Badhwar, G. D., Cucinotta, F. A., O’Neill, P. M., An           and Astronautics, paper number AIAA 2005-
+    analysis of interplanetary space radiation                 6653, 2005.
+    exposure for various solar cycles. Radiat. Res.,       Kim, M.Y., Cucinotta, F.A., Wilson, J.W. Mean
+     138, no. 2, 201-208, 1994.                                occurrence frequency and temporal risk analysis
+Billings, M.P., Yucker, W.R. The computerized                  of solar particle events. Radiat. Meas. 41, 1115-
+    Anatomical Man (CAM) Model, NASA CR-                       1122, 2006.
+     134043, 1973.                                         Kim, M.Y., Cucinotta, F.A., Wilson, J.W. A temporal
+                                                               forecast of radiation environments for future
+    space exploration missions. Radiat. Environ.             O’Neill, P., Badhwar–O’Neill galactic cosmic ray
+   Biophys. 46, 95-100, 2007.                                    model update based on advanced composition
+Kim, M.Y., Hayat, M.J., Feiveson, A.H., Cucinotta,               explorer (ACE) energy spectra from 1997 to
+   F.A. Prediction of frequency and exposure level               present, Adv. Space Res., 37, 1727-1733,
+    of solar particle events, Health Physics Journal,            2006.Ponomarev, A.L., Nounu, H.N., Hussein,
+    97(1), 68-81, July 2009a.                                    H.F., Kim, M.Y., Atwell, W., and Cucinotta,
+Kim, M.Y., Hayat, M.J., Feiveson, A.H., Cucinotta,               F.A., NASA-developed ProE-based tool for the
+   F.A., “Using High-Energy Proton Fluence to                    raytracing of spacecraft geometry to determine
+    Improve Risk Prediction for Consequences of                  radiation doses and particle fluxes in habitable
+    Solar Particle Events,” Adv. in Space Res.,                  areas of spacecraft and in the human body,
+    doi: 10. 10 1 6/j.asr.2009.07.028, 2009b.                    NASA/TP-2007-214770, 2007.
+Lopate, C., Simpson, J. A., The physics of cosmic ray        Shea, M.A. and Smart, D.F., A Summary of major
+   modulation: heliospheric propagation during the               proton events, Solar Physics, 127, 297-320,
+    1987 minimum. J. Geophys. Res., 96, no. A9,                  1990.
+   no. 15877-15898, 1991.                                    Wilson, J.W., Townsend, L.W., Nealy, J.E., Chun,
+McCracken KG., Dreschhoff GAM, Zeller EJ, et al.                 S.Y., Hong, B.S., Buck, W.W., Lamkin, S.L.,
+    (2001) Solar cosmic ray events for the period                Ganapole, B.D., Kahn, F., Cucinotta, F.A.
+    1561-1994 1. Identification in polar ice, 1561-              BRYNTRN: A Baryon transport model.
+    1950, J. of Geophys. Res., 106, no. A10, 21585-              Washington DC, NASA Report No. TP-2887,
+   21598                                                         1989.
+NCRP, Guidance on Radiation Received in Space                Wilson, J.W., Townsend, L.W., Schimmerling, W.,
+   Activities, NCRP Report No. 98., National                     Khandelwal, G.S., Khan, F., Nealy, J.E.,
+    Council on Radiation Protection and                          Cucinotta, F.A., Simonsen, L.C., Shinn, J.L.,
+   Measurements, Bethesda, MD, 1989.                             Norbury, J.W. Transport methods and
+NCRP, Radiation Protection Guidance for Activities               interactions for space radiations. Washington
+    in Low-Earth Orbit. Report No. 132, National                 DC, NASA Report No. RP 1257, 199 1.
+    Council on Radiation Protection and                      Wilson, J.W., Badave, F.F., Cucinotta, F.A., et al.
+   Measurements, Bethesda, MD, 2000.                             HZETRN: Description of a free-space ion and
+NCRP, Operational Radiation Safety Program for                   nucleon transport and shielding computer
+   Astronauts in Low-Earth Orbit: A Basic                        program. NASA TP-3495, 1995.
+   Framework. Report No. 142, National Council               Wilson, J. W., Kim, M. Y., Shinn, J. L., Tai, H.,
+    on Radiation Protection and Measurements,                    Cucinotta, F. A., Badhwar, G. D., Badavi, F. F.,
+   Bethesda, MD, 2002.                                           Atwell, W. Solar cycle variation and application
+NRC/NAS, National Research Council/National                      to the space radiation environment. NASA/TP-
+   Academy of Sciences, Committee on the                         1999-209369, 1999.
+   Evaluation of Radiation Shielding for Space               Wilson JW, Kim MY, De Angelis G, Cucinotta FA,
+   Exploration. Managing space radiation risk in                 Yoshizawa N, and Badavi FF. Implementation of
+   the new era of space exploration, the National                Gy-Eq for deterministic effects limitation in
+   Academies Press; 2008.                                        shield design. J. Radiat. Res., 43:S103-S106;
+Noyes, R. W., The Sun, Our Star. Harvard Univ.                   2002.
+   Press, Cambridge, MA, 1982.                               Withbroe, G. L. Solar activity cycle: history and
+Nymmik, R. A., Panasyuk, M. I., Suslov, A. A.,                   predictions. J. Spacecr. & Rockets, 26, no. 6,
+    Galactic cosmic ray flux simulation and                      394–402, 1989.
+   prediction. Adv. Space Res., 17(2), 19-30, 1996.
+
+
+
+
+                                                        10
+

@@ -1,0 +1,454 @@
+First Int'l. Orbital Debris Conf. (2019)                                                                                            6065.pdf
+
+
+
+
+             Characterizing the Orbital Debris Environment Using Satellite Perturbation Anomaly
+                                                    Data
+
+
+                          Joel Williamsen(1), Daniel Pechkis(2), Asha Balakrishnan(3), Stephen Ouellette(4)
+              (1)
+                   Institute for Defense Analyses, 4850 Mark Center Drive, Alexandria VA 22311 USA, jwilliam@ida.org
+              (2)
+                  Institute for Defense Analyses, 4850 Mark Center Drive, Alexandria VA 22311 USA, dpechkis@ida.org
+         (3)
+             IDA Science and Technology Policy Institute, 1701 Pennsylvania Ave, Washington, DC 20006, abalakri@ida.org
+               (4)
+                   Institute for Defense Analyses, 4850 Mark Center Drive, Alexandria VA 22311 USA, souellet@ida.org
+
+                                                             ABSTRACT
+         The untracked orbital debris environment is as one of the most serious risks to the survivability of satellites in high-
+         traffic low Earth orbits, where acute satellite population growth is taking place. This paper describes a method for
+         correlating observed satellite orbital changes with orbital debris impacts, and demonstrates how populations of small
+         debris (< 1 cm) can be characterized by directly examining the orbit and attitude changes of individual satellites
+         within constellations. The paper also presents means for detecting unusual movements and other anomalies (e.g.,
+         communication losses) in individual satellites and satellite constellations using space surveillance sensors and in situ
+         methods. Finally, the paper discusses how an anomaly data archive and policy repository might be established,
+         supporting an improved definition of the orbital debris environment in harmony with the President’s Space Policy
+         Directive 3.
+
+         1    SATELLITE CONSTELLATIONS AND UNTRACKED ORBITAL DEBRIS: A COLLISION
+              COURSE
+          “Space Policy Directive 3: National Space Traffic Management Policy” calls for the timely and actionable
+         characterization of space objects and their operational environments to support safe, stable, and sustainable space
+         activities. The directive’s goals include advancing the science and technology of critical space situational awareness
+         (SSA) inputs, such as observational data and models to improve SSA capabilities; minimizing deficiencies in SSA
+         capability, particularly in coverage regions with limited sensor availability and sensitivity for detection of small
+         debris; updating debris mitigation guidelines, standards, and policies to mitigate the operational effects of orbital
+         debris; and establishing new guidelines for satellite design and operation [1].
+         Historically, the National Aeronautics and Space Administration (NASA) Orbital Debris Program Office has taken a
+         leading role in the characterization of small, mostly untrackable orbital debris in low Earth orbit (LEO), producing
+         the Orbital Debris Engineering Model (ORDEM) [2]. ORDEM depends on post-flight observations of Shuttle
+         radiators and windows to predict small orbital debris impacts—unfortunately, this source produced almost no data
+         on impacts above 1mm in size. Ground-based staring radars, such as Goldstone and Haystack [3], can measure and
+         predict orbital debris sizes down to 3 mm at the ISS orbit, leaving a critical gap in prediction for particle sizes of 1
+         mm to 3 mm. At higher altitudes (400 to 2000 km), this gap in prediction capability grows—not only because radar
+         capability to detect small debris sizes deteriorates with altitude, but also because there has been no way to gather in
+         situ data on smaller orbital debris strikes (< 1 mm) at these higher, critical altitudes. It is also noteworthy that
+         existing in situ data based on post-flight observations of Shuttle impacts ceased with the last Shuttle flight in 2011.
+         Some new method of gathering in situ data for impacts of all sizes under 3mm is clearly needed in order to calibrate
+         existing NASA orbital debris models.
+         Why is examination of this 1mm – 3mm gap important? Table 1 and Figure 1 show that the number of satellites to
+         be placed in LEO is expected to grow more than tenfold in the next decade [4]. Many of these satellite
+         constellations will be placed into orbits where orbital debris (1 mm to 1 cm in size) is both untrackable and
+         dangerous to satellite survivability. Although the precise design of these future satellites remains unknown, Table 1
+         shows the expected number of 1 mm, 3 mm, and 1 cm impacts these satellites would experience if they fall into the
+         1 m2 “minisat” size regime (where the predicted number of impacts is computed by multiplying the expected flux ×
+         area × time).
+First Int'l. Orbital Debris Conf. (2019)                                                                                           6065.pdf
+
+
+
+         Table 1. Expected Satellite Constellations [4] and Their Orbital Debris Impact Predictions Using ORDEM 3.0
+
+                                                                                      Debris Impacts per Year (2029)
+                                                                                      Assuming 1 m^2 Satellite Body
+                                                           Average
+                            Operator         Number                      Origin   > 1 mm         > 3 mm            > 1 cm
+                                                        Altitude (km)
+                       A - SpaceX Vband       7518            340          US      211             0.1             0.009
+                       B - Black Sky            60            450          US        6             0.0             0.000
+                       C - Planet               24            500          US        5             0.0             0.000
+                       D -Kepler               140            550          US       28             0.1             0.004
+                       E - Spire               150            651          US      139             0.2             0.012
+                       F - Orbcomm              30            750          US       51             0.1             0.006
+                       G - Iridium              72            780          US       72             0.4             0.014
+                       H - Theia               112            800          US      260             0.4             0.033
+                       I - Xingyun             156           1000        China     317             0.3             0.017
+                       J - Hongyan             300           1100        China     321             0.4             0.020
+                       K - SpaceX Starlink    4425           1200          US     2496             4.6             0.174
+                       L - Boeing             2956           1200          US     1667             3.0             0.116
+                       M - OneWeb              720           1200         ESA      406             0.7             0.028
+                       N - Telesat LEO         117           1248       Canada      45             0.1             0.005
+                       O - Astrome Tech        600           1400        India     804             0.9             0.020
+                       P - Samsung            4600           1500        Korea    9476             7.1             0.141
+                                                  Predicted Totals per Year       16303            18                1
+
+
+
+
+          Figure 1. Predicted debris flux (particles/m2/year) and expected satellite constellations and their altitudes for the
+         year 2029 [2] [4]. The letters shown in the top panel correspond to the letter designations of the new satellites given
+                                                              in Table 1.
+First Int'l. Orbital Debris Conf. (2019)                                                                                           6065.pdf
+
+
+
+         As the chart shows, huge satellite constellations are being placed into altitudes where predicted orbital debris
+         populations dangerous to satellite survivability (above 1mm) are high. But are these predictions accurate?
+
+         2    COMPARING ACTUAL SATELLITE FAILURES AND ANOMALIES TO THE PREDICTED
+              ORBITAL DEBRIS ENVIRONMENT
+         Based on debris flux predictions from ORDEM 3.0, the new population of satellites expected in LEO by 2029 will
+         face more than 10,000 orbital debris impacts of 1 mm size or larger each year (see Table 1). For these new satellite
+         constellations, the prediction accuracy of the > 1 mm orbital debris size regime is vital to the survivability of these
+         systems.
+         In 2017, the NASA Engineering and Safety Center (NESC) published a technical study, titled “Evaluation of
+         Micrometeoroid and Orbital Debris Risk Predictions with Available On-Orbit Assets” [5]. The study compared
+         observed anomalies across three operational satellite types that were attributed to micrometeoroid and orbital debris
+         (MMOD) impacts with predictions of how many of those failures should have occurred using NASA’s MMOD risk
+         assessment methodology and tools. The NESC team used two methods. First, they compared actual satellite
+         anomaly data to the predicted number of failures, considering a total of 73 separate spacecraft of three types at high-
+         inclination orbits (> 85°) between 700 km and 900 km. The failure predictions and comparisons to anomaly
+         observations were limited to one clearly defined failure mode—sudden leaks in pressurized batteries and propulsion
+         tanks—that was most likely to be caused by a sudden orbital debris impact, and where the well-established
+         pressurized tank design was not likely to leak from other causes. Considering this satellite group, a total of between
+         8 and 11 failures were predicted versus two anomalies actually reported, indicating that the orbital debris failure
+         prediction process (either the environment, penetration assessment, or both) likely is overpredicting failures (or
+         satellite owner-operators are underreporting anomalies). The range of orbital debris sizes causing failure differed
+         from spacecraft to spacecraft, but varied from 1.5 mm to 4 mm—right in the range where the least information exists
+         about the orbital debris environment—implying the desperate need for better in situ data on flux distributions in this
+         critical size regime.
+         In this same NASA study, the researchers used a second methodology—an IDA-developed prediction technique—to
+         correlate impacts with orbital debris of various sizes to reported motions of satellites in LEOs [6]. The relative
+         velocity distribution of orbital debris particles, in 800 km nearly polar orbits, varies from approximately 1 km/s to
+         15 km/s for debris impacting the “side” and “front” of a spacecraft (perpendicular and normal to the velocity vector).
+         Over 50% of impacts between 14 and 15 km/s occur nearly parallel and opposite to the spacecraft velocity vector
+         (see Figure 2). When impacts occur under these conditions, there is a momentum exchange between the orbital
+         debris particle and the satellite that causes the satellite to lose orbital velocity and, averaged over an orbital period,
+         orbit at lower altitude (the average between apogee and perigee). The loss in average satellite altitude (delta satellite
+         mean altitude) that results is highly dependent on the mass, velocity, and direction of the impacting particle, as well
+         as the design of the satellite body that is impacted.
+
+
+
+
+                      Figure 2. Predicted orbital debris relative impact velocities for an 800 km circular orbit [6]
+First Int'l. Orbital Debris Conf. (2019)                                                                                            6065.pdf
+
+
+
+         IDA used hydrocode analyses (see Figure 3) to determine the effects of different orbital debris sizes, masses,
+         velocities, and directionalities on both single plates and dual plates. These plates simulate subsequent layers in
+         general satellite construction. Using this technique, IDA verified that the momentum of the impacting particle
+         actually “multiplies” by a factor > 1 due to some of the original impacting debris and target material flowing
+         backward, out of the damaged spacecraft, to act like a small rocket motor that further reduces the spacecraft’s
+         forward velocity and thus lowers the average satellite altitude. IDA established that this momentum enhancement
+         factor (MEF) varies between 1.5 and 3, depending on spacecraft structure. Thin structures, such as spacecraft solar
+         arrays, do not react as strongly to orbital debris impact, because the debris tends to go through them without
+         depositing multiplied momentum.
+
+
+
+
+            Figure 3. Debris clouds produced by simulated orbital debris impacts at 14 km/s [6]. Note that debris ejected
+            backwards, outside the original first surface, causes a momentum multiplication effect relative to the original
+              momentum of the orbital into the satellite. The x-axis and y-axis in the above graphs indicate distances in
+                      centimeters, and particle colors represent the physical phase of the produced debris cloud.
+         As stated earlier, the satellite mean altitude is defined as the average of the satellite’s altitudes at perigee and at
+         apogee (this average is equivalent to the semi-major axis), and is a useful term for expressing and computing the
+         change in mean altitude before and after collision (i.e., the delta satellite mean altitude (dSMA)). For a simple
+         illustration of the magnitude of the collision’s effect on dSMA, IDA assumed the satellite initially is in a circular
+         Keplerian orbit. The mathematics for relating orbital debris impact characteristics to changes in spacecraft velocity
+         and altitude are given below. The instantaneous orbital velocity of the spacecraft is related to the spacecraft altitude
+         as shown in Equation 1,
+                                                       v2= (1/2) ve2 (2/r-1/a),                                          (1)
+         where v is the orbital velocity, ve is the escape velocity from Earth (11,200 m/s), and r and a are the spacecraft
+         orbital radius and semi-major axis, respectively, both in units of the Earth’s radius (6370 km, and with r = a for
+         circular orbits).
+         After colliding with debris, the satellite will enter an elliptical orbit and have a new mean altitude or semi-major
+         axis. Equation 1 allows for the computation of the original orbital velocity in circular orbit at radius a and of the
+         orbital velocity immediately after impact, still at radius r but with the perturbed semi-major axis, a.
+         From the change in satellite velocity, dV, the mass of the impacting particle is then calculated using Equation 2,
+         assuming near-normal incidence,
+                                                       m0×v0×MEF=M×dV,                                                   (2)
+         where m0 is the impacting debris mass, v0 is the impacting debris velocity, MEF is the momentum enhancement
+         factor, and M is the mass of the satellite.
+First Int'l. Orbital Debris Conf. (2019)                                                                                          6065.pdf
+
+
+
+         Table 2 shows how changes in altitude following orbital debris impact may be correlated for each satellite class to
+         the size of the impacting particles (in this case, at a near-polar circular orbit and 800 km altitude for a 14.94 km/s
+         impact). The detectable impacting particle size varies with the type of debris (steel or aluminum), the size and mass
+         of the satellite, and the amount of orbit reduction (dSMA, in m) that can be detected by the satellite operator, the
+         U.S. Space Command, or other entity. For example, it is possible to detect a 1.75 mm diameter or larger aluminum
+         sphere, or a 1.25 mm steel orbital debris particle, impacting a minisat by means of a 3 m change in dSMA in the
+         minisat’s altitude. A nanosat weighs 100 times less, so it is possible to detect much smaller dSMA changes (0.38
+         mm aluminum, 0.27 mm steel) from impacting orbital debris size for an observed 3 m change in altitude. Knowing
+         the design of a satellite’s shields and its exposed area, one can compare the observed number of orbit changes of a
+         given size over time (due to multiple debris impacts over time) to the expected number of orbit changes using the
+         predicted orbital debris environment models (e.g., ORDEM 3.0 [2]). Usng this technique, we now have a way to
+         compare the debris prediction models to the actual 1 to 3 mm debris population. This, in turn, has numerous
+         ramifications, ranging from satellite design (shielding weight, spacecraft cost) to risk perception and management.
+
+
+
+
+             *Based on impacts > 14 km/sec in orbit plane (~50% of flux). More occurances are possible considering all flux
+                                                              directions
+         The number of expected orbital changes (dSMA occurrences), as predicted using NASA’s ORDEM 3.0 model, is
+         listed at the bottom right of Table 2. Given large constellations, hundreds of hits of 1-3 mm particles are expected,
+         if NASA’s orbital debris model is correct. Clearly, a capability to resolve dSMA after an orbital debris strike will
+         allow more data to be gathered on the orbital debris environment.
+
+         3      METHODS TO DETECT SATELLITE MOVEMENTS AND OTHER ANOMALIES
+
+         3.1      Ground-Based Radar and Laser Ranging
+         The U.S. Space Command’s Space Surveillance Network (SSN) contains the largest collection of LEO-observing
+         ground-based radars. The SSN sends object tracking and radar characterization data to the Combined Space
+         Operations Center (CSpOC). The CSpOC uses the data to determine a space object’s location and trajectory. For
+         the majority of tracked objects, U.S. Space Command publicly distributes this orbital information (via www.space-
+         track.org) in the form of two-line element sets (TLEs). The TLE data format contains the satellite’s orbital elements
+         and is used to predict orbital positions through propagation models. For a spacecraft in LEO, the accuracy that can
+         be obtained with the current orbit models is on the order of kilometers within a few days of the epoch of the element
+         set. The typical error growth for TLEs propagated with an analytical propagator is 1.5 km per day. The prediction
+         error growth can be reduced to 100 m per day by treating TLE data as “pseudo-observations” and fitting an object’s
+         orbit to the pseudo-observations using a high-precision special perturbations propagator and traditional batch least-
+         squares [7].
+First Int'l. Orbital Debris Conf. (2019)                                                                                            6065.pdf
+
+
+
+         Although a 100 m (and even a 1 km) error is sufficiently small enough for radars to find and track specific objects, it
+         is one to two orders of magnitude larger than the 0.5 to 20 m mean altitude change experienced by mini-, micro-,
+         and nanosats when struck by millimeter-sized debris. The sensitivity and large field of view of Space Fence (an
+         improvement to the SSN) will provide precision object tracking and increase the number of tracks per day, leading
+         to both more precise knowledge of a space object’s location and a better estimate of its trajectory. But unless a
+         debris impact happens between two observations closely spaced in time (Space Fence and another radar), the error
+         in the orbital propagation prediction may easily exceed the 0.5 to 20 m mean altitude change experienced by a
+         satellite hit by millimeter-sized debris.
+         The CSpOC space object catalog contains a small number of well-understood satellites with accurately known
+         positions (measured within 1 m), determined from either laser ranging or onboard beacons [8-9]. Some of the most
+         precisely tracked satellites are geodetic satellites that are orbited for the purpose of establishing high-accuracy
+         reference frames for precise measurement of Earth locations. Geodetic satellites carry various aids to facilitate their
+         precise tracking to an accuracy of less than one m [10], well under the 20 m altitude change that may occur from a
+         debris impact. These aids include laser reflectors, radio frequency transponders, and impulse light sources. These
+         satellites are good candidates for monitoring sudden changes in altitude due to debris strikes. However, a
+         mechanism needs to be established to ensure they are routinely lased and any deviations are reported so a potential
+         debris strike can be investigated.
+
+         3.2    Monitoring Satellite Crosslinks in Constellations
+         Many current and planned future satellite constellations communicate through uplinks that send information from
+         the ground to a satellite, satellite-to-satellite crosslinks that relay the information to a satellite near the intended
+         recipient of the message, and a final downlink from that satellite to the recipient satellite. Sudden changes in
+         satellite positions can be detected through loss of these crosslinks, whose beam widths (and sensitivity to changes in
+         satellite position) vary with the technology used to transmit information. Optical methods send information through
+         laser crosslinks. Because of their narrow beam angles, optical antennas require a pointing precision in the range of
+         microradians, so they could easily detect a satellite position change of a meter or less and infer the minimum debris
+         size that would cause such a change. For radio frequency links, pointing is less precise than with optical antennas
+         since the radio frequency beam angles are much wider (generally on the order of 0.5 milliradians) [11].
+
+         Figure 4 shows the changes in pointing angle associated with typical satellite position changes from impacts of 1 to
+         20 dSMA. The times in green and yellow, in the associated table, show the linkage between changes in mean
+         altitude and changes in pointing error that can be detected by broken Radio frequency and optical links. There is no
+         way to directly measure the change in pointing angle; once the satellite rotates enough to break the link, the link is
+         broken, but we don’t know by how much. It’s important to note that a simple loss of signal does not mean the
+         satellite has moved, but might be associated with a change in guidance or reaction wheel response.
+
+
+
+
+         Figure 4. Change in crosslink pointing angle associated with sudden movement of satellites following debris impact
+First Int'l. Orbital Debris Conf. (2019)                                                                                         6065.pdf
+
+
+
+         3.3    GPS Methodologies
+         The continuous monitoring of Global Positioning System (GPS) position information for LEO satellites is becoming
+         a feasible way to detect sudden changes in their mean orbital altitude. Satellites in LEO can receive signals from
+         GPS satellites, and because they have signal availability, signal navigation, and timing performance similar to that of
+         terrestrial GPS users, they may compute their own position over the earth. Current GPS receivers for LEO that use
+         dual antennas are advertised to have positional accuracies better than 15 m [12]. This error is too large to detect
+         mean altitude changes less than 15 m, but new M-code GPS receivers are expected to have LEO positional errors of
+         less than 4 m [13], allowing for the detection and estimation of altitude changes greater than and equal to 5 m (this
+         indicates the art of the possible for mass produced operational receivers). Furthermore, studies show that 1 m
+         accuracy is achievable with commercial off-the-shelf signal-frequency GPS receivers for LEO, and that accuracy
+         can be improved down to 0.3 m using post-processed GPS orbit and clock products [14]. Figure 5 shows that a
+         change of 0.5 m in altitude renders an along-track change in observed position along its track of about 1.5 m after
+         just one orbital period, which should be detectable using commercial off-the-shelf signal-frequency GPS receivers
+         for LEO. The satellite or ground station would continuously record its GPS position, and sudden changes to that
+         position could then be correlated to potential debris strikes.
+
+
+
+
+                      Figure 5. Change in expected GPS position in one orbit induced by orbital altitude change.
+
+         3.4    Other In Situ Methods for Detecting and Reporting Anomalies
+         The attribution of altitude changes to debris impacts may be supported by correlating the altitude changes with
+         changes in satellite telemetry state-of-heath [15, 16] and waveform characteristics (e.g., gain fluctuations and
+         Doppler frequency shifts) [17], monitoring reaction wheel responses to sudden changes in the satellite’s orientation,
+         and detecting communication outages between satellites within constellations. The latter two possible data sources
+         would both arise in response to sporadic changes in satellite orientation due to momentum transfer from debris.
+         Reaction wheels would respond to the orientation change in order to maintain attitude control and, if the change in
+         orientation is large enough, communications between adjoining satellites within a constellation could be interrupted.
+
+         4     COLLECTING AND DISTRIBUTING ANOMALY DATA
+         In addition to calling for the identification of new means to catalog debris data, Space Policy Directive 3 calls for the
+         creation of minimum standards for safe satellite operation and mitigation of any associated debris. Furthermore, the
+         policy directs the U.S. Government to provide guidelines to satellite and constellation owners and operators that
+         consider maneuverability, tracking, reliability, and disposal, and that encompass all stages of satellite operation from
+         design to end of life. A major focus of the policy is improving SSA data interoperability, including satellite and
+         debris tracking as well as location predictions, to make the SSA environment safer to operate within [25]. All U.S.
+         Government agencies (Department of Defense (DoD), NASA, National Oceanic and Atmospheric Administration
+First Int'l. Orbital Debris Conf. (2019)                                                                                           6065.pdf
+
+
+
+         (NOAA), etc.) that operate satellites in LEO currently are required prior to launch to assess risks to the satellite
+         (from loss of control or from loss of ability to dispose of the satellite at the end of the mission) from impacts with
+         small debris (< 1 cm).
+         In the United States, different agencies have various roles in monitoring and regulating the space environment. The
+         DoD owns the U.S. Government sensors that identify and track space objects. NASA is leading the effort to
+         establish new guidelines for satellite design and operation through the U.S. Orbital Debris Mitigation Standard
+         Practices. NASA also represents the United States on the Inter-Agency Debris Coordinating Committee, the
+         international group that coordinates space debris research activities between member space agencies, reviews the
+         progress of ongoing cooperative activities, and identifies debris mitigation options. The Federal Communications
+         Commission (FCC) is responsible for licensing radio transmissions from satellites owned by private companies.
+         Under rules put into effect in 2005, FCC authorization requires communication satellites that transmit to U.S.
+         receiver systems to submit documentation on their debris mitigation strategy. A debris mitigation strategy includes
+         plans to limit operational debris produced during the mission and to limit the probability that the satellite will
+         become a source of debris [18]. The Federal Aviation Administration (FAA) Office of Commercial Space
+         Transportation oversees, authorizes, and regulates launches and reentries of vehicles and the operation of launch and
+         reentry sites for the United States. A major focus of FAA debris mitigation regulation is reentry debris. NOAA
+         issues licenses for remote sensing space systems, and one requirement is that the licensee assess and minimize the
+         amount of orbital debris associated with the satellite’s disposal.
+         The FCC, FAA, and NOAA are all involved in the licensing of U.S. commercial satellite systems, with each agency
+         having different oversight related to orbital debris. DoD and NASA are involved in assessing the orbital debris
+         environment, with NASA leading the effort and relying on DoD to provide satellite object data. Current orbital
+         debris regulations focus on plans to mitigate against creating debris and plans to properly dispose of debris that is
+         created. Absent from these regulations is a requirement for satellite owners or operators to provide data that will aid
+         in assessing the debris environment. Figure 6 shows the potential relationship of anomaly data collection and
+         distribution to satellite design and operating processes for orbital debris risk assessment and mitigation.
+
+
+
+
+          Figure 6. Relationship of anomaly data collection and distribution to design processes for orbital debris mitigation
+         We propose the creation of an anomaly data archive to support an improved definition of the orbital debris
+         environment in harmony with Space Policy Directive 3. Anomaly data are relevant within Space Policy Directive 3
+         because of its goal to create a safer operating environment as well as to establish new guidelines for satellite design
+         and operation. Currently, satellite owners and operators rely on the ORDEM 3.0 debris model to predict the number
+         of anomalies or failures. Collecting and tracking satellite anomaly data will greatly improve the model and allow for
+         a more realistic assessment of the true debris environment. Also, anomaly data could be an important aspect of the
+         open architecture data repository called for in Space Policy Directive 3. In fact, tracking anomaly data in a standard
+First Int'l. Orbital Debris Conf. (2019)                                                                                            6065.pdf
+
+
+
+         and consistent manner and sharing the data with satellite owners and operators can ultimately lead to improved
+         designs and a better understanding of the root causes of failures. As the Department of Commerce (DoC) develops
+         the SSA data repository architecture, they should not only include the location and tracking of objects but also
+         consider a mechanism to capture anomaly data caused by debris. Figure 10 shows the potential relationship of an
+         independent anomaly data collection and distribution entity to the existing orbital debris design community.
+         Educating owners and operators about the benefits of submitting such anomaly data may convince them to submit
+         their data to help create a safer operating environment for their satellites as well as for other satellites.
+         Creating a transparent, simple process for submitting anomaly data to DoC’s data repository might be sufficient to
+         motivate satellite operators to take responsibility for fostering a safe space environment. However, if the goodwill
+         approach is not enough, the U.S. could adopt requirements into the space regulatory environment that compel U.S.
+         owners and operators to provide anomaly data. The FCC, FAA, and NOAA could extend the debris mitigation plan
+         portion of their licensure application process to require owners or operators to provide anomaly data to the DoC data
+         repository. Alternatively, agreeing to share anomaly data could be made a requirement for receiving DoC object
+         catalogue services (currently provided by DoD). Anomaly data could be anonymized—all that would be required is
+         satellite mass, original altitude, the altitude change, and the approximate time and orbital location of impact. Other
+         concurrent satellite failure information could be offered by satellite operators on a voluntary basis to strengthen the
+         case for orbital debris impact as the source of the observed perturbation.
+
+         5    CONCLUSIONS AND RECOMMENDATIONS FOR FURTHER STUDY
+         The 2018 national Space Policy Directive 3 calls for “advancing the science and technology of critical space
+         situational awareness inputs such as observational data…[and] models necessary to improve SSA
+         capabilities…particularly in coverage regions with limited sensor availability and sensitivity in detection of small
+         debris…[and updating] debris mitigation guidelines, standards, and policies…to mitigate the operational effects of
+         orbital debris” [1]. Prior to launch, all U.S. Government agencies (DoD, NASA, NOAA, etc.) that operate satellites
+         in LEO must meet requirements for assessing risks to a satellite (from loss of control or from loss of ability to
+         dispose of the satellite at the end of the mission) from impacts with small debris (< 1 cm). The accuracy of risk
+         assessments is directly dependent on the accuracy of orbital debris environment predictions; overpredicting risk can
+         lead to heavier satellites and higher launch costs.
+         NASA studies show that orbital debris 1 mm to 3 mm in size cannot be directly measured, but can be expected to
+         cause serious or catastrophic damage to spacecraft in LEO, where acute growth of satellite numbers is occurring.
+         Current NASA orbital debris environment models and spacecraft assessment techniques for altitudes above 400 km
+         appear to overpredict the number of satellite impacts by a factor of 10 and the number of failures by a factor of 5.
+         Clearly, better orbital debris environment data are needed for these altitudes to accurately predict the number of
+         satellite impacts and failures, particularly as the use of LEO space expands.
+         This paper has outlined a technique for using small changes (1 to 20 m) in satellite mean altitude to calculate the size
+         of small, untrackable orbital debris particles that impact satellites. NASA can also use these mean altitude changes
+         as a “detector” to validate and improve their orbital debris model (ORDEM 3.0), which is the primary tool used to
+         perform required satellite risk assessments. A variety of techniques are available for determining the magnitude of
+         vertical movement (from 1 to 20 m) of satellites following debris hits of 1 to 4 mm (depending on satellite design).
+         Some of the most promising include monitoring a satellite’s GPS position and its ability to maintain communication
+         crosslinks with the neighboring satellites in a constellation. Using reported data on internal spacecraft anomalies
+         (failures) that accompany a rapid change in orbital position would also improve confidence in current orbital debris
+         models.
+         A major goal of Space Policy Directive 3 is to improve data collection and data processing to better track and
+         predict locations of satellites and debris. To best address the potential risk from orbital debris, and to help improve
+         debris models (particularly the ORDEM model), satellite owners and operators need to share anomaly data and other
+         satellite information within a common framework. Improved debris models will lead to a better understanding of
+         the debris environment and more accurate predictions. Creating an easy, transparent process for submitting anomaly
+         data to DoC’s data repository could be sufficient to motivate satellite operators to take responsibility for fostering a
+         safe space environment. If not, however, the U.S. government could adopt requirements into the space regulatory
+         environment; U.S. owners and operators could be mandated to provide anomaly data. The FCC, FAA, and NOAA
+         could extend the debris mitigation plan component of their licensure application process to require owners and
+         operators to provide anomaly data to the DoC data repository.
+First Int'l. Orbital Debris Conf. (2019)                                                                                    6065.pdf
+
+
+
+         6    REFERENCES
+         1. Trump, D. J. “Space Policy Directive-3: National Space Traffic Management Policy.” Presidential
+            Memorandum, June 18, 2018. https://www.whitehouse.gov/presidential-actions/space-policy-directive-3-
+            national-space-traffic-management-policy/.
+         2. Matney, M. “NASA’s Orbital Debris Environment Model, ORDEM 3.0” (JSC-CN-33100). Presentation given at
+            the 33rd Meeting of the Interagency Space Debris Coordination Committee, Houston, TX, March 30, 2015.
+         3. Stokely, C. L., Foster, J. L., Jr., Stansbery, E. G., Benbrook, J. R., and Juarez, Q. “Haystack and HAX Radar
+            Measurements of the Orbital Debris Environment; 2003” (Paper No. JSC-62815). Houston, TX: Lyndon B.
+            Johnson Space Center, National Aeronautics and Space Administration, November 2006.
+         4. NewSpace. “NewSpace Index: NewSpace Satellite Constellations.” Accessed November 2018.
+            https://www.newspace.im/index.html.
+         5. Squire, M., et al. “Evaluation of Micrometeoroid and Orbital Debris (MMOD) Risk Predictions with Available
+            On-Orbit Assets” (NESC-RP-14-01000). Hampton, VA: NASA Engineering and Safety Center, September 1,
+            2017.
+         6. Williamsen, J., and Evans, S. “Orbital Debris Momentum Transfer in Satellite Shields following Hypervelocity
+            Impact, and Its Application to Environment Validation.” Paper 102 presented at the 14th Hypervelocity Impact
+            Symposium, Canterbury, Kent, UK, April 26, 2017.
+         7. Creon, L., and Marshall, W. “Improved Orbit Predictions Using Two-Line Elements.” Advances in Space
+            Research 47, no. 7 (2011): 1107-1115. https://doi.org/10.1016/j.asr.2010.10.017.
+         8. Mochan, J., and Stophel, R. A. “Dynamic Calibration of Space Object Tracking Systems.” The Space Congress
+            Proceedings, Paper 1, April 1968.
+         9. Range Commanders Council. “Using Satellites for Radar Performance Monitoring and Calibration.” White
+            Sands Missile Range, NM: Joint Range Instrument Accuracy Improvement Group, May 3, 1995.
+         10. Degnan, J. J. “The History and Future of Satellite Laser Ranging.” Paper presented at the 17th International
+             Workshop on Laser Ranging, Bad Kötzting, Germany, May 16-20, 2011.
+         11. Cummings, W. C. “Satellite Crosslinks” (Technical Note 78-25). Cambridge, MA: Massachusetts Institute of
+             Technology, 1978.
+         12. General Dynamics Mission Systems. “ViceroyTM-4 GPS Spaceborne Receiver.” 2015.
+             https://gdmissionsystems.com/-/media/General-Dynamics/Space-and-Intelligence-Systems/PDF/space-viceroy-
+             gps-receiver-datasheet.ashx?la=en&hash=C3D437F215F1701A0A3C73BBE6A950AB08BF0DD6.
+         13. General Dynamics Mission Systems. “Sentinel® M-Code GPS Receiver.” 2018. https://gdmissionsystems.com/-
+             /media/General-Dynamics/Space-and-Intelligence-Systems/PDF/space-sentinel-m-code-gps-receiver-
+             datasheet.ashx?la=en&hash=2C5005BDD762901BD1D22242CF4DF749A40733DC.
+         14. Montenbruck, O., et al. “Precision Spacecraft Navigation Using a Low-Cost GPS Receiver.” GPS Solutions 16,
+             no. 4 (October 2012): 519-529. https://doi.org/10.1007/s10291-011-0252-6.
+         15. Hammond, M., and Jobman, R. “Satellite-As-a-Sensor Neural Network Abnormality Classification
+             Optimization” (Paper no. SSC06-III-2). Paper presented at the 20th Annual AIAA/USU Conference on Small
+             Satellites, Logan, UT, August 14-17, 2006.
+         16. O’Meara, C., Schlag, L., and Wickler, M. “Applications of Deep Learning Neural Networks to Satellite
+             Telemetry Monitoring.” Paper presented at the 2018 SpaceOps Conference, Marseille, France, May-June 2018.
+         17. Richmond, D., and Raichle, K. “Doppler Curves in Satellite Tracking and Characterization.” In Proceedings of
+             the 2018 Advanced Maui Optical and Space Surveillance Technologies Conference, Volume 2, edited by S.
+             Ryan. Maui, HI: Maui Economic Development Board, September 2018.
+         18. Sorge, M. “Commercial Space Activity and Its Impact on U.S. Space Debris Regulatory Structure.” El Segundo,
+             CA: Center for Space Policy and Strategy, The Aerospace Corporation, 2017.
+             https://aerospace.org/sites/default/files/2018-05/CommercialDebrisRegulation.pdf.
+
