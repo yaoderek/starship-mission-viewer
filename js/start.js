@@ -1,7 +1,7 @@
 // Start screen: the mission builder over an animated backdrop of the chosen destination.
 import * as THREE from 'three';
 import { loadSkyData, makeSky } from './sky.js';
-import { planetTexture, atmosphereMaterial, glowTexture, earthClouds, ringTexture, remapRingUVs } from './textures.js';
+import { planetTexture, atmosphereMaterial, atmosphereHaloMaterial, ATMOSPHERES, glowTexture, earthClouds, ringTexture, remapRingUVs } from './textures.js';
 import { drawSchematic } from './schematic.js';
 import { PLANETS, STARS, SOLAR_VEHICLES, STAR_VEHICLES, planetById, starById } from './catalog.js';
 import { buildMission } from './interstellar.js';
@@ -13,7 +13,6 @@ import * as Rad from './radiation.js';
 
 // ------------------------------------------------------------------ hero backdrop
 // The selected destination fills the middle of the screen between the two builder rails.
-const ATMO = { venus: ['#f4dca0', 0.9], earth: ['#6fb0ff', 1.3], mars: ['#e8a27a', 0.7], jupiter: ['#e8d4b0', 0.55], saturn: ['#efe0b8', 0.55], uranus: ['#bff0f4', 0.8], neptune: ['#7aa0ff', 0.9] };
 const TILT = { mercury: 0.03, venus: 3.1, earth: 0.41, mars: 0.44, jupiter: 0.05, saturn: 0.47, uranus: 1.71, neptune: 0.49 };
 let hero = null;
 export async function initHero() {
@@ -37,12 +36,19 @@ function heroPlanet(name) {
   const H = hero; if (H.planets[name]) return H.planets[name];
   const g = new THREE.Group(), tilt = new THREE.Group(); tilt.rotation.z = TILT[name] || 0; g.add(tilt);
   const body = new THREE.Mesh(new THREE.SphereGeometry(1, 128, 64), new THREE.MeshStandardMaterial({ map: planetTexture(name), roughness: 1 })); tilt.add(body);
-  if (name === 'earth') { const cl = new THREE.Mesh(new THREE.SphereGeometry(1.01, 128, 64), new THREE.MeshStandardMaterial({ map: earthClouds(), transparent: true, depthWrite: false })); cl.userData.spin = 0.065; tilt.add(cl); }
-  if (ATMO[name]) { const am = atmosphereMaterial(...ATMO[name]); am.uniforms.sunPos && am.uniforms.sunPos.value.copy(H.sunPos); tilt.add(new THREE.Mesh(new THREE.SphereGeometry(1.05, 96, 48), am)); }
+  if (name === 'earth') { const cl = new THREE.Mesh(new THREE.SphereGeometry(1.01, 128, 64), new THREE.MeshStandardMaterial({ map: earthClouds(), transparent: true, depthWrite: false })); cl.userData.spin = 0.065; cl.renderOrder = 1; tilt.add(cl); }
+  const A = ATMOSPHERES[name];
+  if (A) {
+    const am = atmosphereMaterial(A.color, A.rim), hm = atmosphereHaloMaterial(A.color, A.halo);
+    am.uniforms.sunPos.value.copy(H.sunPos); hm.uniforms.sunPos.value.copy(H.sunPos);
+    const rim = new THREE.Mesh(new THREE.SphereGeometry(1.05, 64, 32), am); rim.renderOrder = 2;
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(A.shell, 48, 24), hm); halo.renderOrder = 3;
+    tilt.add(rim, halo);
+  }
   if (name === 'saturn') {
     const rg = new THREE.RingGeometry(1.24, 2.27, 160, 1); remapRingUVs(rg, 1.24, 2.27);
     const ring = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ map: ringTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 1 }));
-    ring.rotation.x = Math.PI / 2 - 0.25; tilt.add(ring);
+    ring.rotation.x = Math.PI / 2 - 0.25; ring.renderOrder = 4; tilt.add(ring);
   }
   g.userData.body = body; g.visible = false; H.pivot.add(g); H.planets[name] = g; return g;
 }
@@ -51,11 +57,14 @@ export function setHero(mode) { if (hero) hero.target = mode; }
 export function renderHero(dt) {
   if (!hero) return; const H = hero; H.t += dt;
   const key = m => typeof m === 'string' ? m : 'star:' + (m && m.id);
-  if (key(H.mode) !== key(H.target)) { H.fade -= dt * 3; if (H.fade <= 0) { H.mode = H.target; H.fade = 0; } } else H.fade = Math.min(1, H.fade + dt * 2);
+  if (key(H.mode) !== key(H.target)) {
+    if (typeof H.target === 'string') { H.mode = H.target; H.fade = 1; } // planet swap keeps scale; no zoom pulse
+    else { H.fade -= dt * 3; if (H.fade <= 0) { H.mode = H.target; H.fade = 0; } }
+  } else H.fade = Math.min(1, H.fade + dt * 2);
   const wide = innerWidth > 1000, isStar = H.mode && typeof H.mode !== 'string';
   for (const [k, g] of Object.entries(H.planets)) g.visible = false;
   if (H.mode && !isStar) {
-    const g = heroPlanet(H.mode), s = (wide ? (H.mode === 'saturn' ? 1.05 : 1.55) : 1.3) * (0.9 + 0.1 * H.fade);
+    const g = heroPlanet(H.mode), s = wide ? (H.mode === 'saturn' ? 1.05 : 1.55) : 1.3;
     g.visible = true; g.position.set(wide ? 0.25 : 0, wide ? -0.05 : -1.6, 0); g.scale.setScalar(s); g.userData.body.rotation.y = H.t * 0.05;
     g.traverse(o => { if (o.userData.spin) o.rotation.y = H.t * o.userData.spin; });
   }

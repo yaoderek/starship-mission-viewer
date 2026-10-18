@@ -11,7 +11,7 @@ import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
 import { loadSkyData, makeSky } from './sky.js';
-import { planetTexture, earthClouds, ringTexture, remapRingUVs, glowTexture, starSpikeTexture, sunTexture, atmosphereMaterial } from './textures.js';
+import { planetTexture, earthClouds, ringTexture, remapRingUVs, glowTexture, starSpikeTexture, sunTexture, atmosphereMaterial, atmosphereHaloMaterial, ATMOSPHERES } from './textures.js';
 import { STARS, MAP_STARS } from './catalog.js';
 import { starPos } from './interstellar.js';
 import { cap } from './fmt.js';
@@ -21,7 +21,6 @@ export const RADIUS = { mercury: 2439, venus: 6052, earth: 6371, mars: 3390, jup
 export const PCOL = { mercury: '#9a958e', venus: '#d8c49a', earth: '#5b8fd0', mars: '#c8714f', jupiter: '#d3b48c', saturn: '#d8c595', uranus: '#9fd3d8', neptune: '#5b78d8' };
 const TILT = { mercury: 0.03, venus: 177.4, earth: 23.44, mars: 25.19, jupiter: 3.13, saturn: 26.73, uranus: 97.77, neptune: 28.32 };
 const SPIN = { mercury: 0.02, venus: -0.01, earth: 0.25, mars: 0.24, jupiter: 0.6, saturn: 0.55, uranus: -0.35, neptune: 0.37 };   // cosmetic rad/s
-const ATMO = { venus: ['#f4dca0', 0.9], earth: ['#6fb0ff', 1.2], mars: ['#e8a27a', 0.45], jupiter: ['#e8d4b0', 0.5], saturn: ['#efe0b8', 0.5], uranus: ['#bff0f4', 0.7], neptune: ['#7aa0ff', 0.8] };
 export const EVC = { launch: '#f2f2f2', arrival: '#f2f2f2', flyby: '#a8a8a8', dsm: '#e0b050', hazard: '#e0605a', surface: '#9ccf7a', departure: '#f2f2f2', return: '#f2f2f2' };
 const AU_KM = 149597870.7, SUN_R = 695700 / AU_KM;
 
@@ -124,6 +123,17 @@ const orbitMat = color => new THREE.ShaderMaterial({
 
 function baseSize(name) { return trueScale ? RADIUS[name] / AU_KM : 0.010 * Math.pow(RADIUS[name] / 6371, 0.55); }
 
+// Tight Fresnel limb plus a larger soft halo. No shell for airless bodies.
+function addAtmosphere(tilt, name) {
+  const A = ATMOSPHERES[name]; if (!A) return;
+  const rimMat = atmosphereMaterial(A.color, A.rim), haloMat = atmosphereHaloMaterial(A.color, A.halo);
+  const rim = new THREE.Mesh(new THREE.SphereGeometry(1.045, 48, 24), rimMat);
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(A.shell, 40, 20), haloMat);
+  rim.userData.atmo = rimMat; halo.userData.atmo = haloMat;
+  rim.renderOrder = 2; halo.renderOrder = 3;
+  tilt.add(rim, halo);
+}
+
 function buildPlanets() {
   orbitGroup.clear(); gridGroup.clear();
   for (const p of Object.values(planets)) { scene.remove(p.group); scene.remove(p.dot); }
@@ -141,12 +151,12 @@ function buildPlanets() {
     tilt.rotation.x = Math.PI / 2 - THREE.MathUtils.degToRad(TILT[name]);
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 48), new THREE.MeshStandardMaterial({ map: planetTexture(name), roughness: 0.95, metalness: 0 }));
     mesh.userData = { kind: 'planet', name }; tilt.add(mesh);
-    if (name === 'earth') { const cl = new THREE.Mesh(new THREE.SphereGeometry(1.012, 96, 48), new THREE.MeshStandardMaterial({ map: earthClouds(), transparent: true, depthWrite: false, roughness: 1 })); cl.userData.spin = 0.32; tilt.add(cl); }
-    if (ATMO[name]) { const am = atmosphereMaterial(ATMO[name][0], ATMO[name][1]); const a = new THREE.Mesh(new THREE.SphereGeometry(1.045, 64, 32), am); a.userData.atmo = am; tilt.add(a); }
+    if (name === 'earth') { const cl = new THREE.Mesh(new THREE.SphereGeometry(1.012, 96, 48), new THREE.MeshStandardMaterial({ map: earthClouds(), transparent: true, depthWrite: false, roughness: 1 })); cl.userData.spin = 0.32; cl.renderOrder = 1; tilt.add(cl); }
+    addAtmosphere(tilt, name);
     if (name === 'saturn') {
       const rg = new THREE.RingGeometry(1.24, 2.27, 160, 1); remapRingUVs(rg, 1.24, 2.27);
       const ring = new THREE.Mesh(rg, new THREE.MeshStandardMaterial({ map: ringTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false, roughness: 1 }));
-      ring.rotation.x = -Math.PI / 2; tilt.add(ring);
+      ring.rotation.x = -Math.PI / 2; ring.renderOrder = 4; tilt.add(ring);
     }
     scene.add(group); hoverables.push(mesh);
     const dot = sprite(DOT, PCOL[name], 9); dot.userData = { kind: 'planet', name }; scene.add(dot); hoverables.push(dot);
@@ -260,12 +270,18 @@ export function flyTo(target, dist, dir) {
   const d = dir ? dir.clone().normalize() : camera.position.clone().sub(controls.target).normalize();
   tween = { t: 0, fromT: controls.target.clone(), toT: target.clone(), fromP: camera.position.clone(), toP: target.clone().add(d.multiplyScalar(dist)) };
 }
+// Re-center on the planet without dollying. The camera stays put and only
+// turns, so the solar system's zoom does not pulse in or out.
 export function focusPlanet(name) {
-  if (!planets[name]) return; focus = name; const p = planets[name];
-  flyTo(p.group.position, trueScale ? baseSize(name) * 8 : Math.max(0.2, p.group.scale.x * 14));
+  if (!planets[name]) return;
+  focus = name;
+  tween = { t: 0, pan: true, fromT: controls.target.clone(), cam: camera.position.clone() };
 }
 export function flyToEvent(e) { focus = null; flyTo(new THREE.Vector3(...e.pos), mode === 'interstellar' ? 2.5 : 0.8); }
-export function setScale(v) { trueScale = v; if (focus) focusPlanet(focus); }
+export function setScale(v) {
+  trueScale = v;
+  if (focus && planets[focus]) flyTo(planets[focus].group.position, trueScale ? baseSize(focus) * 8 : Math.max(0.2, planets[focus].group.scale.x * 14));
+}
 export function setRelativistic(v) { relView = v; }
 export const getMode = () => mode;
 
@@ -358,9 +374,14 @@ export function update(jd, dt, beta = 0) {
 
 export function render(dt) {
   if (tween) {
-    tween.t = Math.min(1, tween.t + dt / 1.1); const e = ease(tween.t);
-    controls.target.lerpVectors(tween.fromT, tween.toT, e); camera.position.lerpVectors(tween.fromP, tween.toP, e);
-    if (focus && planets[focus]) controls.target.copy(planets[focus].group.position);
+    tween.t = Math.min(1, tween.t + dt / (tween.pan ? 0.7 : 1.1)); const e = ease(tween.t);
+    if (tween.pan && focus && planets[focus]) {
+      controls.target.lerpVectors(tween.fromT, planets[focus].group.position, e);
+      camera.position.copy(tween.cam);
+    } else {
+      controls.target.lerpVectors(tween.fromT, tween.toT, e); camera.position.lerpVectors(tween.fromP, tween.toP, e);
+      if (focus && planets[focus]) controls.target.copy(planets[focus].group.position);
+    }
     if (tween.t >= 1) tween = null;
   }
   controls.update();
