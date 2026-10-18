@@ -186,12 +186,15 @@ function drawIsru() {
   const ymin = 100, ymax = 1e5, ly = v => T + (h - T - B) * (1 - Math.log10(Math.max(ymin, v) / ymin) / Math.log10(ymax / ymin));
   g.font = '10px ' + MONO; g.strokeStyle = C.grid; g.fillStyle = C.axis;
   for (const v of [100, 1e3, 1e4, 1e5]) { g.beginPath(); g.moveTo(L, ly(v) + .5); g.lineTo(w - 10, ly(v) + .5); g.stroke(); g.fillText(v >= 1e3 ? (v / 1e3) + ' MW' : v + ' kW', 4, ly(v) + 3); }
-  for (const v of [30, 60, 120, 240, 480, 1000, 2000]) { g.beginPath(); g.moveTo(lx(v) + .5, T); g.lineTo(lx(v) + .5, h - B); g.stroke(); g.fillText(v, lx(v) - 8, h - 6); }
+  for (const v of [30, 60, 120, 240, 480, 1000, 2000]) { g.beginPath(); g.moveTo(lx(v) + .5, T); g.lineTo(lx(v) + .5, h - B); g.stroke(); const lab = String(v); g.fillText(lab, Math.min(lx(v) - 8, w - 4 - g.measureText(lab).width), h - 6); }
   g.strokeStyle = C.tot; g.lineWidth = 1.5; g.beginPath(); cu.forEach((q, k) => k ? g.lineTo(lx(q.days), ly(q.kw)) : g.moveTo(lx(q.days), ly(q.kw))); g.stroke(); g.lineWidth = 1;
   g.strokeStyle = C.surf; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(L, ly(I.power_kw_config)); g.lineTo(w - 10, ly(I.power_kw_config)); g.stroke(); g.setLineDash([]);
-  g.fillStyle = C.surf; g.fillText(`Planned plant ${int(I.power_kw_config)} kW`, L + 4, ly(I.power_kw_config) - 4);
+  const fit = (text, x) => Math.max(L, Math.min(x, w - 6 - g.measureText(text).width));
+  const plant = `Planned plant ${int(I.power_kw_config)} kW`;
+  g.fillStyle = C.surf; g.fillText(plant, fit(plant, L + 4), ly(I.power_kw_config) - 4);
   const x = lx(I.plan.prod_days), y = ly(I.plan.power_kw); g.fillStyle = I.feasible_at_config ? C.surf : C.belt; g.fillRect(x - 3, y - 3, 6, 6);
-  g.fillText(`This stay needs ${int(I.plan.power_kw)} kW`, Math.min(x + 7, w - 150), y - 6); g.fillStyle = C.axis; g.fillText('days of production', w - 120, h - 6);
+  const need = `This stay needs ${int(I.plan.power_kw)} kW`;
+  g.fillText(need, fit(need, x + 7), y - 6); g.fillStyle = C.axis; const xlab = 'days of production'; g.fillText(xlab, fit(xlab, w), h - 6);
 }
 const MONO = 'ui-monospace,"JetBrains Mono","DejaVu Sans Mono",Menlo,monospace';
 
@@ -234,27 +237,35 @@ function drawChart(jd) {
   const p = Math.min(devicePixelRatio, 2); if (cv.width !== Math.round(r.width * p) || cv.height !== Math.round(r.height * p)) { cv.width = r.width * p; cv.height = r.height * p; }
   const g = cv.getContext('2d'); g.setTransform(p, 0, 0, p, 0, 0); const DW = r.width, DH = r.height; g.clearRect(0, 0, DW, DH); g.font = '10px ' + MONO;
   const R = mission && mission.radiation; if (!R) { g.fillStyle = C.axis; g.fillText('No radiation data', 10, 20); return; }
-  const L = 44, Rr = 10, T = 26, B = 22, w = DW - L - Rr, h = DH - T - B;
   const star = isStar(), xs = star ? R.tau : R.jd.map(x => x - R.jd[0]), tmax = xs[xs.length - 1] || 1, yrs = tmax > 800;
   const tot = adj(sheltered ? R.tot_mean_sh : R.tot_mean), p95 = adj(sheltered ? R.tot_p95_sh : R.tot_p95), spe = sheltered ? R.spe_mean_sh : R.spe_mean, belt = sheltered ? R.belt_cum_sh : R.belt_cum;
-  const ymax = Math.max(50, ...p95) * 1.12, X = v => L + v / tmax * w, Y = v => T + h - v / ymax * h;
-  if (!star) for (const ph of mission.phases || []) if (ph.name.includes('stay')) { const a = X(ph.jd0 - R.jd[0]), b = X(ph.jd1 - R.jd[0]); g.fillStyle = 'rgba(156,207,122,.07)'; g.fillRect(a, T, b - a, h); g.fillStyle = '#6f8f5a'; g.fillText('on surface', a + 4, T + h - 5); }
+  const ymax = Math.max(50, ...p95) * 1.12;
+  const L = 44, Rr = 10, B = 22, rowH = 14;
+  const items = [['Total', C.tot], ['Bad case', C.p95], ['Cosmic rays', C.gcr], ...(star ? [] : [['Solar storms', C.spe], ['Belts', C.belt]]), ...(R.totals.surface ? [['Surface', C.surf]] : [])];
+  const placed = []; let lx0 = 0, rows = 1, maxLeg = Math.max(48, DW - L - 4);
+  for (const [k, c] of items) {
+    const label = k.toUpperCase(), need = g.measureText(label).width + 26;
+    if (lx0 > 0 && lx0 + need > maxLeg) { lx0 = 0; rows++; }
+    placed.push({ label, c, x: L + lx0, row: rows - 1 }); lx0 += need;
+  }
+  const T = 12 + (rows - 1) * rowH + 14, w = DW - L - Rr, h = DH - T - B;
+  const X = v => L + v / tmax * w, Y = v => T + h - v / ymax * h;
+  if (!star) for (const ph of mission.phases || []) if (ph.name.includes('stay')) { const a = X(ph.jd0 - R.jd[0]), b = X(ph.jd1 - R.jd[0]); g.fillStyle = 'rgba(156,207,122,.07)'; g.fillRect(a, T, b - a, h); g.fillStyle = '#6f8f5a'; const sl = 'on surface'; g.fillText(sl, Math.min(a + 4, DW - 4 - g.measureText(sl).width), T + h - 5); }
   g.strokeStyle = C.grid; g.lineWidth = 1; g.fillStyle = C.axis;
   const step = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000].find(s => ymax / s <= 6) || 1e5;
   for (let v = 0; v <= ymax; v += step) { g.beginPath(); g.moveTo(L, Y(v) + .5); g.lineTo(L + w, Y(v) + .5); g.stroke(); g.fillText(int(v), 4, Y(v) + 3); }
   const unit = yrs ? 365.25 : 1, xsStep = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 5000, 10000, 50000].map(s => s * (yrs ? 365.25 : 1)).concat(yrs ? [] : [30, 60, 90, 180, 365]).sort((a, b) => a - b).find(s => tmax / s <= 7) || tmax;
-  for (let v = 0; v <= tmax + 1e-9; v += xsStep) { g.beginPath(); g.moveTo(X(v) + .5, T); g.lineTo(X(v) + .5, T + h); g.stroke(); g.fillText(int(v / unit), X(v) - 4, DH - 7); }
+  for (let v = 0; v <= tmax + 1e-9; v += xsStep) { g.beginPath(); g.moveTo(X(v) + .5, T); g.lineTo(X(v) + .5, T + h); g.stroke(); const lab = int(v / unit); g.fillText(lab, Math.min(Math.max(2, X(v) - 4), DW - 4 - g.measureText(lab).width), DH - 7); }
   g.textAlign = 'right'; g.fillText(star ? (yrs ? 'ship years →' : 'ship days →') : (yrs ? 'years →' : 'mission day →'), L + w - 4, T + h - 6); g.textAlign = 'left'; g.fillText('mSv', 4, T - 8);
   const line = (arr, col, dash, lw = 1) => { g.strokeStyle = col; g.setLineDash(dash || []); g.lineWidth = lw; g.beginPath(); arr.forEach((v, k) => k ? g.lineTo(X(xs[k]), Y(v)) : g.moveTo(X(xs[k]), Y(v))); g.stroke(); g.setLineDash([]); g.lineWidth = 1; };
-  if (600 <= ymax) { g.strokeStyle = C.lim; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(L, Y(600)); g.lineTo(L + w, Y(600)); g.stroke(); g.setLineDash([]); g.fillStyle = C.lim; g.fillText('career limit 600', L + w - 100, Y(600) - 4); }
+  if (600 <= ymax) { g.strokeStyle = C.lim; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(L, Y(600)); g.lineTo(L + w, Y(600)); g.stroke(); g.setLineDash([]); g.fillStyle = C.lim; const limLab = 'career limit 600'; g.fillText(limLab, Math.max(L, L + w - g.measureText(limLab).width - 4), Y(600) - 4); }
   const gc = R.surf_cum ? R.gcr_cum.map((v, i) => v - R.surf_cum[i]) : R.gcr_cum;
   if (R.surf_cum && R.totals.surface) line(adj(R.surf_cum), C.surf);
   if (!star) { line(spe, C.spe); line(belt, C.belt); }
   line(gc, C.gcr); line(p95, C.p95, [3, 3]); line(tot, C.tot, null, 2);
   const now = star ? starAt(jd).tau : jd - R.jd[0], xn = X(Math.min(now, tmax));
   g.strokeStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.moveTo(xn + .5, T); g.lineTo(xn + .5, T + h); g.stroke();
-  let lx = L; const items = [['Total', C.tot], ['Bad case', C.p95], ['Cosmic rays', C.gcr], ...(star ? [] : [['Solar storms', C.spe], ['Belts', C.belt]]), ...(R.totals.surface ? [['Surface', C.surf]] : [])];
-  for (const [k, c] of items) { g.fillStyle = c; g.fillRect(lx, 8, 10, 2.5); g.fillStyle = '#8a8a8a'; g.fillText(k.toUpperCase(), lx + 14, 12); lx += g.measureText(k).width + 26; }
+  for (const it of placed) { const y = 12 + it.row * rowH; g.fillStyle = it.c; g.fillRect(it.x, y - 4, 10, 2.5); g.fillStyle = '#8a8a8a'; g.fillText(it.label, it.x + 14, y); }
 }
 function radAt(jd) {
   const R = mission && mission.radiation; if (!R) return null; const J = R.jd, n = J.length;

@@ -110,6 +110,9 @@ body.dragging{user-select:none;cursor:grabbing}body.dragging canvas{pointer-even
 .ph h2{margin:0;font:400 10px var(--mono);letter-spacing:.08em;color:#b4b4b4;white-space:nowrap}
 .ph .hint{color:var(--mute);letter-spacing:0;font-size:9.5px;text-transform:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;text-align:right}
 .ph .tog{margin-left:auto;text-transform:none}
+/* Radiation header: the shelter control must stay whole when the column is ~380px or dragged narrower. */
+#pRad>.ph{flex-wrap:wrap;row-gap:3px}
+#pRad>.ph h2{flex:1 1 auto;min-width:min(100%,14em);white-space:normal;line-height:1.35}
 .max{flex:none;background:transparent;border:1px solid transparent;color:var(--mute);width:18px;height:16px;cursor:pointer;font-size:11px;line-height:1;padding:0}
 .max:hover{color:var(--hi);border-color:var(--ln2)}
 .panel.maxed{position:fixed;z-index:40;inset:35px 0 59px 0;outline:1px solid var(--ln2)}
@@ -201,7 +204,7 @@ details.explain summary{cursor:pointer;color:#b4b4b4;font-size:10px;letter-spaci
 .hz .src:hover{text-decoration:underline}
 
 /* radiation */
-.seg.reg{display:flex;align-items:center;border:0;padding:3px 8px;border-bottom:1px solid var(--ln)}
+.seg.reg{display:flex;align-items:center;flex-wrap:wrap;row-gap:3px;border:0;padding:3px 8px;border-bottom:1px solid var(--ln)}
 .seg.reg .k{font-size:9px;color:var(--mute);margin-right:8px;letter-spacing:.06em}
 .seg.reg button{font-size:9.5px;padding:2px 6px;border:1px solid var(--ln2);margin-right:-1px}
 .chartwrap{position:relative;height:210px;border-bottom:1px solid var(--ln);flex:none}
