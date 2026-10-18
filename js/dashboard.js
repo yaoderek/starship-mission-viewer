@@ -197,6 +197,13 @@ function renderStarBudget() {
     ['Top speed', pct(S.beta), 'of c'], ['Acceleration', p.kind === 'ballistic' ? '—' : sig(p.accel), 'g'], ['Exhaust speed', p.kind === 'rocket' ? pct(p.ve) : p.kind === 'beam' ? 'laser' : p.kind === 'ramjet' ? 'scooped' : '—', p.kind === 'rocket' ? 'of c' : ''],
     ['Dry mass', mass(p.dry), ''], ['Propellant used', p.kind === 'rocket' ? mass(S.prop_used_t) : 'none', ''], ['Mass ratio', p.kind === 'rocket' ? sig(S.mr) : '1', 'm₀/m₁'],
     ['Propellant loaded', p.kind === 'rocket' ? mass(p.prop) : '—', '', p.kind === 'rocket' && S.prop_used_t < p.prop * 0.98 ? 'ok' : ''], ['Kinetic energy at cruise', energy(S.ke_J), ''], ['Arrival', S.decel ? 'brakes into orbit' : 'flies past', '']];
+  // energy source vs reaction mass: a fraction 1 − √(1 − v²/c²) of the propellant used has to become jet energy
+  const veh = vehicleById('star', mission.vehicleId), d = veh && veh.drive;
+  if (p.kind === 'rocket') { const eps = 1 - Math.sqrt(Math.max(0, 1 - p.ve * p.ve)), used = S.prop_used_t;
+    rows.push(['Specific impulse', `${p.ve * c / 9.80665 >= 1e6 ? sig(p.ve * c / 9.80665 / 1e6) + ' million' : int(p.ve * c / 9.80665)}`, 's'],
+      ['Turned into jet energy', `${mass(used * eps)} <span class="dim">(${sig(eps * 100)}%)</span>`, ''], ['Thrown out as reaction mass', eps >= 0.999 ? 'none (all light)' : mass(used * (1 - eps)), ''],
+      ['Energy into the exhaust', energy(used * eps * 1000 * c * c), '']); }
+  const driveNote = d ? `<div class="wide note">Energy source: ${esc(d.energy)}. Reaction mass: ${esc(d.exhaust)}.</div>` : '';
   let extra = '';
   if (p.kind === 'rocket' && S.prop_used_t < p.prop * 0.98) extra += `<div class="wide note">Only ${sig(S.prop_used_t / p.prop * 100)}% of the loaded propellant is needed: the trip is short enough that the ship turns over before running dry.</div>`;
   if (mission.vehicleId === 'hailmary') {
@@ -206,7 +213,7 @@ function renderStarBudget() {
       `With ${mass(p.dry)} of ship that is ${mass(need)} of Astrophage. ${need > p.prop * 1.02 ? `The ${mass(p.prop)} loaded is not enough for this profile.` : `The ${mass(p.prop)} loaded covers it.`} ` +
       `Change the dry mass or fuel in Edit mission to see how sensitive the trip is.</div>`;
   }
-  $('budget').innerHTML = kv(rows) + extra;
+  $('budget').innerHTML = kv(rows) + driveNote + extra;
 }
 function drawIsru() {
   const cv = $('isruchart'), r = cv.getBoundingClientRect(); if (!r.width) return;

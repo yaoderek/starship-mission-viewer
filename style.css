@@ -294,3 +294,13 @@ table.mini td.dim{white-space:normal}
 .est-rad span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .est-note{padding:0 8px 6px}
 .rk:only-child{grid-column:1/-1}
+
+/* dark, thin scrollbars to match the console */
+:root{color-scheme:dark}
+*{scrollbar-width:thin;scrollbar-color:#3a3a3a #0a0a0a}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:#0a0a0a}
+::-webkit-scrollbar-thumb{background:#2e2e2e;border:2px solid #0a0a0a}
+::-webkit-scrollbar-thumb:hover{background:#4a4a4a}
+::-webkit-scrollbar-corner{background:#0a0a0a}
+.est-grid.drive{margin-top:-1px;border-top:1px solid var(--ln)}.est-grid.drive b{font-size:11px;line-height:1.35}

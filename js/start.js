@@ -72,7 +72,7 @@ export function renderHero(dt) {
 // ------------------------------------------------------------------ builder
 const PARAM_DEFS = {
   solar: [['dry', 'Dry mass', 't', 1], ['payload', 'Payload', 't', 1], ['cap', 'Tank capacity', 't', 10], ['isp', 'Engine Isp', 's', 1], ['tanker', 'Propellant per tanker', 't', 5], ['maxTankers', 'Tanker flights allowed', '', 1], ['wall', 'Extra cabin shielding (water)', 'g/cm²', 5], ['shelter', 'Storm shelter (water)', 'g/cm²', 5]],
-  rocket: [['dry', 'Dry mass', 't', 1], ['prop', 'Propellant', 't', 1], ['ve', 'Exhaust speed', '% of c', 0.1, 100], ['accel', 'Acceleration', 'g', 0.01], ['crew', 'Crew', '', 1], ['shield', 'Crew shielding', 'g/cm²', 1]],
+  rocket: [['dry', 'Dry mass', 't', 1], ['prop', 'Propellant loaded', 't', 1], ['ve', 'Exhaust speed', '% of c', 0.1, 100], ['accel', 'Acceleration', 'g', 0.01], ['crew', 'Crew', '', 1], ['shield', 'Crew shielding', 'g/cm²', 1]],
   beam: [['beta', 'Target speed', '% of c', 1, 100], ['accel', 'Acceleration', 'g', 100]],
   ramjet: [['accel', 'Acceleration', 'g', 0.1], ['crew', 'Crew', '', 1], ['shield', 'Crew shielding', 'g/cm²', 1]],
   ballistic: [['vkms', 'Cruise speed', 'km/s', 0.1]],
@@ -146,7 +146,7 @@ function renderParams() {
   let html = defs.map(([k, label, unit, step, scale = 1]) => `<label class="field"><span>${label}</span><input type="number" data-k="${k}" data-s="${scale}" step="${step}" min="0" value="${+(p[k] * scale).toPrecision(6)}"><em>${unit}</em></label>`).join('');
   if (B.kind === 'star') {
     if (p.kind === 'rocket' || p.kind === 'ramjet') html += `<label class="check"><input type="checkbox" data-k="decel" ${p.decel ? 'checked' : ''}> Brake at the destination instead of flying past</label>`;
-    if (v.id === 'hailmary') html += `<label class="check"><input type="checkbox" data-k="followBook" ${p.followBook ? 'checked' : ''}> Fly the book’s profile: 1.5 g all the way, whether or not the fuel allows it</label>`;
+    if (v.id === 'hailmary') html += `<label class="check"><input type="checkbox" data-k="followBook" ${p.followBook ? 'checked' : ''}> Fly the book’s profile: 1.5 g all the way, whether or not the Astrophage aboard allows it</label>`;
     html += `<label class="field"><span>Launch year</span><input type="number" data-year step="1" value="${B.year}"><em></em></label>`;
   }
   html += `<button class="ghost small" id="preset-reset">Reset to ${esc(v.name)} defaults</button>`;
@@ -173,8 +173,8 @@ async function estimate() {
     el.innerHTML = `<div class="est-grid">
       <div><span>Earth time</span><b>${dur(S.earth_days)}</b></div><div><span>Ship time</span><b class="acc">${dur(S.ship_days)}</b></div>
       <div><span>Top speed</span><b>${S.beta >= 0.001 ? (S.beta * 100).toFixed(S.beta > 0.99 ? 2 : 1) + '% c' : f1(S.beta * 299792.458, 1) + ' km/s'}</b></div><div><span>Arrives</span><b>${S.decel ? 'and stops' : 'flyby'}</b></div>
-      ${p.kind === 'rocket' ? `<div><span>Mass ratio</span><b>${sig(S.mr)}</b></div><div><span>Fuel needed</span><b class="${short ? 'no' : ''}">${mass(S.prop_used_t)}</b></div>` : ''}
-    </div>${short ? `<div class="bad">Needs ${sig(S.prop_used_t / p.prop)}× the propellant loaded. The trip shown follows the book anyway; untick “Fly the book’s profile” to see what the fuel really buys.</div>` : ''}
+      ${p.kind === 'rocket' ? `<div><span>Mass ratio</span><b>${sig(S.mr)}</b></div><div><span>Propellant needed</span><b class="${short ? 'no' : ''}">${mass(S.prop_used_t)}</b></div>` : ''}
+    </div>${driveBox(v, p)}${short ? `<div class="bad">Needs ${sig(S.prop_used_t / p.prop)}× the propellant loaded. The trip shown follows the book anyway; untick “Fly the book’s profile” to see what the loaded Astrophage really buys.</div>` : ''}
     ${S.crew && S.ship_days > 365 * 60 ? '<div class="bad">Longer than a human lifetime aboard.</div>' : ''}${starRadEstimate(m)}`;
     return;
   }
@@ -188,6 +188,21 @@ async function estimate() {
   el.innerHTML = `<div class="est-grid"><div><span>Options that work</span><b class="${ok.length ? 'ok' : 'no'}">${ok.length} of ${data.missions.length}</b></div>
     ${best ? `<div><span>Fewest tankers</span><b>${best.summary.tankers_needed}</b></div><div><span>That route</span><b>${esc(best.name)}</b></div><div><span>Launch / duration</span><b>${best.summary.launch}, ${int(best.summary.total_days ?? best.summary.tof_years * 365.25)} d</b></div>` : ''}
     </div>${ok.length ? '' : `<div class="bad">Nothing closes with this vehicle: ${esc((data.missions[0].summary.why || [])[0] || '')}. You can still open the dashboard to see why.</div>`}${radEstimate(data, shown, ok, p)}`;
+}
+// What the propellant actually does in this drive: energy source vs reaction mass, and whether the energy source
+// can supply the exhaust speed asked for (a fraction 1 − √(1 − v²/c²) of the propellant must become jet energy).
+export const jetFraction = ve => 1 - Math.sqrt(Math.max(0, 1 - ve * ve));
+function driveBox(v, p) {
+  const d = v.drive; if (!d) return '';
+  if (p.kind !== 'rocket') return `<div class="est-grid drive"><div class="wide"><span>Energy source</span><b>${esc(d.energy)}</b></div><div class="wide"><span>Thrust from</span><b>${esc(d.exhaust)}</b></div></div>`;
+  const eps = jetFraction(p.ve), isp = p.ve * 299792458 / 9.80665, over = d.epsMax != null && eps > d.epsMax * 1.0001;
+  const pc = x => x >= 0.995 ? '100%' : x >= 0.01 ? (x * 100).toFixed(1) + '%' : (x * 100).toPrecision(2) + '%';
+  return `<div class="est-grid drive">
+    <div class="wide"><span>Energy source</span><b>${esc(d.energy)}</b></div>
+    <div class="wide"><span>Reaction mass (exhaust)</span><b>${esc(d.exhaust)}</b></div>
+    <div><span>Specific impulse</span><b>${isp >= 1e6 ? sig(isp / 1e6) + ' million' : int(isp)} s</b></div>
+    <div><span>Propellant → jet energy</span><b class="${over ? 'no' : ''}">${pc(eps)}</b></div>
+    </div>${over ? `<div class="bad">An exhaust speed of ${sig(p.ve * 100)}% of c needs ${pc(eps)} of the propellant turned into jet energy, but ${esc(d.energy.split(' (')[0])} can release at most ${pc(d.epsMax)}. Lower the exhaust speed or change the drive.</div>` : ''}`;
 }
 // Interstellar crew radiation before launch (probes: what a crew would get in that hull).
 function starRadEstimate(m) {
