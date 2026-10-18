@@ -68,16 +68,16 @@
   <main id="grid">
     <div class="stack" id="colL">
       <section class="panel" id="pCmp" data-grow="5">
-        <div class="ph"><h2 id="cmpTitle">Mission comparison</h2><span class="hint" id="cmpHint"></span><button class="max" title="Expand">⤢</button></div>
+        <div class="ph"><h2 id="cmpTitle">Mission comparison</h2><span class="hint" id="cmpHint"></span></div>
         <div id="modes" class="seg modes"></div>
         <div class="pb tbl-wrap"><table id="cmp" class="grid"></table></div>
       </section>
       <section class="panel" id="pEvt" data-grow="3">
-        <div class="ph"><h2>Selected · event sequence</h2><span class="hint" id="selname"></span><button class="max" title="Expand">⤢</button></div>
+        <div class="ph"><h2>Selected · event sequence</h2><span class="hint" id="selname"></span></div>
         <div class="pb tbl-wrap"><table id="evt" class="grid"></table></div>
       </section>
       <section class="panel" id="pBud" data-grow="4">
-        <div class="ph"><h2 id="budtitle">Δv budget / vehicle</h2><button class="max" title="Expand">⤢</button></div>
+        <div class="ph"><h2 id="budtitle">Δv budget / vehicle</h2></div>
         <div class="pb scroll">
           <div id="budget" class="kv"></div>
           <div id="isruwrap"><div class="sub-h">ISRU · REQUIRED POWER vs PRODUCTION TIME <span class="dim">Sabatier + electrolysis, 13.6 kWh/kg (11.2–20.2)</span></div><canvas id="isruchart"></canvas></div>
@@ -92,28 +92,33 @@
         <div id="scene"><canvas id="c"></canvas><div id="labels"></div><div id="tip"></div></div>
         <div class="legend"><span><i class="ln fl"></i>FLOWN</span><span><i class="ln pl"></i>PLANNED</span><span><i class="sq la"></i>LAUNCH/ARR</span><span class="solar-only"><i class="sq fb"></i>FLYBY</span><span><i class="sq ds"></i>BURN</span><span><i class="sq hzd"></i>HAZARD</span></div>
         <div class="viewhint">DRAG ORBIT · SCROLL ZOOM · DBL-CLICK RESET</div>
-        <button class="max" title="Expand">⤢</button>
       </section>
       <section class="panel" id="pHz" data-grow="3">
-        <div class="ph"><h2>Hazards · risk summary</h2><span id="hzcount" class="hzcount"></span><span class="hint">click card to expand · jumps timeline</span><button class="max" title="Expand">⤢</button></div>
+        <div class="ph"><h2>Hazards · risk summary</h2><span id="hzcount" class="hzcount"></span><span class="hint">click card to expand · jumps timeline</span></div>
         <div class="pb scroll"><div id="hzt" class="hzgrid"></div></div>
       </section>
     </div>
     <div class="gutter colg" data-side="R"></div>
     <div class="stack" id="colR">
-      <section class="panel" id="pRad" data-grow="6">
-        <div class="ph"><h2>Crew radiation · effective dose (mSv)</h2><label class="tog" id="shelterwrap"><input type="checkbox" id="shelter" checked> STORM SHELTER <span id="shval" class="dim"></span></label><button class="max" title="Expand">⤢</button></div>
+      <section class="panel" id="pRad" data-grow="8">
+        <div class="ph"><h2>Crew radiation · effective dose (mSv)</h2><button id="reroll" class="ghost small" title="Roll a new random storm history for this mission">↻ REROLL STORMS</button></div>
         <div class="pb scroll">
+          <div id="risk" class="risk"></div>
+          <div id="shieldctl">
+            <div id="wallseg" class="seg reg"><span class="k">CABIN WALL</span><button data-w="0">+0</button><button data-w="5">+5</button><button data-w="10">+10</button><button data-w="20">+20</button><button data-w="40">+40</button><span class="u">g/cm²</span></div>
+            <div id="shseg" class="seg reg"><span class="k">STORM SHELTER</span><button data-s="0">NONE</button><button data-s="10">10</button><button data-s="20">20</button><button data-s="40">40</button><span class="u">g/cm²</span><span id="shmass" class="mass"></span></div>
+          </div>
           <div id="regseg" class="seg reg"><span class="k">MARS HABITAT</span><button data-r="0">STARSHIP HULL</button><button data-r="0.5">0.5 m REGOLITH</button><button data-r="1">1.0 m REGOLITH</button></div>
           <div class="chartwrap"><canvas id="dosechart"></canvas></div>
           <div id="radnow" class="kv now"></div>
+          <div id="solarwrap"><div class="sub-h">SOLAR CYCLE <span class="dim">sunspots drive storms; a quiet Sun lets more cosmic rays in</span></div><div class="chartwrap solar"><canvas id="solarchart"></canvas></div></div>
           <div id="limits" class="limits"></div>
           <table id="radbreak" class="mini"></table>
           <p id="radnote" class="note"></p>
         </div>
       </section>
       <section class="panel" id="pCab" data-grow="4">
-        <div class="ph"><div id="vseg" class="seg mini"><button data-v="holo" class="on">VEHICLE</button><button data-v="cabin">CREW CABIN</button></div><span class="hint" id="cutnote"></span><button class="max" title="Expand">⤢</button></div>
+        <div class="ph"><div id="vseg" class="seg mini"><button data-v="holo" class="on">VEHICLE</button><button data-v="cabin">CREW CABIN</button></div><span class="hint" id="cutnote"></span></div>
         <div id="holowrap" class="holowrap"><canvas id="holo"></canvas><div class="holo-hud"><b id="holoname">—</b><span id="hololen"></span><span id="holothr" class="thr"></span></div><div id="holoseq" class="holo-seq"></div><button id="ascbtn" class="ghost small holo-asc" hidden>▶ ASCENT</button><div class="holo-credit"></div></div>
         <div id="cutwrap" hidden><canvas id="cut"></canvas><div id="cutleg"></div></div>
       </section>

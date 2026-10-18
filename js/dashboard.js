@@ -5,11 +5,13 @@ import { EVC } from './scene.js';
 import { Holo } from './holo.js';
 import { vehicleById } from './catalog.js';
 import { HISTORIC } from './historic.js';
+import * as Rad from './radiation.js';
+import { resizeAll } from './vehicle.js';
 import { $, cap, esc, f1, int, sig, prob, dur, mass, energy, fmtDate, jdYear, yearJd } from './fmt.js';
 
 const MODES = { 'one-way': 'One-way', conjunction: 'Long stay', opposition: 'Short stay', isru: 'Surface + ISRU', 'round-trip': 'Round trip', rendezvous: 'Stops', flyby: 'Flyby' };
 const C = { surf: '#9ccf7a', gcr: '#9a9a9a', spe: '#e0b050', belt: '#e0605a', tot: '#f2f2f2', p95: '#6a6a6a', lim: '#e0605a', grid: '#1c1c1c', axis: '#5a5a5a' };
-let data = null, mission = null, mIndex = 0, modeFilter = 'all', regSel = null, sheltered = true;
+let data = null, mission = null, mIndex = 0, modeFilter = 'all', regSel = null;
 let t = 0, playing = false, sortKey = 'rank', sortDir = 1, lastJd = -1;
 const isStar = () => data && data.kind === 'interstellar';
 const isHist = () => data && data.kind === 'historic';
@@ -17,7 +19,7 @@ export const state = { get t() { return t; }, get mission() { return mission; },
 
 // ------------------------------------------------------------------ public API
 export function load(d, mi = 0) {
-  data = d; modeFilter = 'all'; sortKey = 'rank'; sortDir = 1; regSel = null;
+  data = d; modeFilter = 'all'; sortKey = 'rank'; sortDir = 1; regSel = null; doseCache.clear(); hzList = [];
   View.setData(d);
   document.body.classList.toggle('mode-star', isStar()); document.body.classList.toggle('mode-solar', !isStar());
   renderModes(); select(Math.min(mi, d.missions.length - 1));
@@ -25,12 +27,12 @@ export function load(d, mi = 0) {
 export function select(i) {
   mIndex = i; mission = data.missions[i];
   if (isHist() && data.target !== mission.target) { data.target = mission.target; View.setData(data); }
-  View.setMission(mission);
+  View.setMission(mission); analyseMission();
   renderCmp(); renderEvents(); renderBudget(); renderReg(); renderRad(); renderHazards(); cabinFor(mission); holoFor(mission);
   drawTimeline(); setT(0); lastJd = -1;
 }
 export function setT(f) { t = Math.max(0, Math.min(1, f)); }
-export function togglePlay(force) { playing = force ?? !playing; if (t >= 1 && playing) t = 0; if (playing && t < 1e-6 && hasLaunch()) runAscent(); $('play').classList.toggle('on', playing); $('play').innerHTML = playing ? PAUSE : PLAY; }
+export function togglePlay(force) { playing = force ?? !playing; if (t >= 1 && playing) { t = 0; if (A) reroll(); } if (playing && t < 1e-6 && hasLaunch()) runAscent(); $('play').classList.toggle('on', playing); $('play').innerHTML = playing ? PAUSE : PLAY; }
 export const span = () => [mission.traj[0][0], mission.traj[mission.traj.length - 1][0]];
 const PLAY = 'PLAY', PAUSE = 'PAUSE';
 
@@ -47,7 +49,8 @@ export function tick(dt) {
   $('met').textContent = `T+${dur(jd - t0)}`;
   if (q) { $('shipclock').textContent = dur(q.tau); $('speedv').textContent = q.beta >= 0.001 ? `${(q.beta * 100).toFixed(q.beta > 0.99 ? 2 : 1)}% c` : q.beta < 1e-7 ? '0' : `${(q.beta * 299792.458).toFixed(1)} km/s`; }
   $('knob').style.left = (t * 100) + '%';
-  if (Math.abs(jd - lastJd) > 1e-6) { drawChart(jd); updateRadNow(jd); lastJd = jd; }
+  const stormOn = lastStorm && performance.now() - lastStorm.at < 4100;   // keep redrawing while a storm alert is up
+  if (stormOn || Math.abs(jd - lastJd) > 1e-6) { stormCheck(jd, lastJd); drawChart(jd); drawSolar(jd); updateRadNow(jd); lastJd = jd; }
   if (view === 'cabin') updateCabin(jd); else if (holo) { holo.setThrust(thrustAt(jd)); holo.setEntry(isStar() ? 0 : entryAt(jd)); $('holothr').textContent = holo.ascActive() ? 'ASCENT' : entryAt(jd) > 0.05 ? 'ENTRY · HEAT SHIELD' : thrustAt(jd) > 0.05 ? 'ENGINE ● BURN' : 'ENGINE ○ COAST'; holo.render(dt); }
 }
 
@@ -60,14 +63,15 @@ function starAt(jd) {
 
 // ------------------------------------------------------------------ comparison table
 const totDays = m => m.summary.total_days ?? m.summary.tof_years * 365.25;
-const regF = (R, x) => { const k = Object.keys(R.regolith).find(q => Math.abs(parseFloat(q) - x) < 1e-6); return k ? R.regolith[k] : 1; };
-function regK(m) { const R = m.radiation; if (!R || !R.regolith || regSel == null) return 1; return regF(R, regSel) / regF(R, R.regolith_used ?? 0); }
-function dose(m) {
-  const T = m.radiation && m.radiation.totals; if (!T) return {};
-  const ds = (T.surface || 0) * (1 - regK(m));
-  return sheltered ? { mean: T.total_mean_sh - ds, p95: T.total_p95_sh - ds } : { mean: T.total_mean - ds, p95: T.total_p95 - ds };
-}
-function adj(arr) { const R = mission.radiation, k = regK(mission); if (k === 1 || !R.surf_cum) return arr; return arr.map((v, i) => v - R.surf_cum[i] * (1 - k)); }
+const cancerCell = d => d.cancer == null ? '<span class="dim">—</span>' : `<span class="${d.mean > 600 ? 'no' : d.mean > 300 ? 'wn' : ''}">${Rad.cancerLabel(d.mean)}</span>`;
+// Interstellar: probes show what a crew would get in that hull, dimmed. Beyond ~6 Sv in two days nobody survives.
+const LETHAL = 6000;
+function starRisk(m) { const T = m.radiation.totals, lethal = T.acute >= LETHAL; return { T, lethal, cancer: Rad.cancerChance(T.total_mean), sick: Rad.sickness(T.acute), sort: lethal ? 2 + T.acute / 1e12 : Rad.cancerChance(T.total_mean) }; }
+const probeTip = m => m.summary.crew ? '' : ' title="Uncrewed: what a crew would receive in this hull"';
+function starDoseCell(m) { const { T, lethal } = starRisk(m), c = m.summary.crew ? '' : 'dim';
+  return `<span class="${c}"${probeTip(m)}>${lethal ? '<span class="no">lethal</span>' : T.total_mean > 10000 ? `<span class="no">${bigDose(T.total_mean)}</span>` : doseCell(T.total_mean)}</span>`; }
+function starCancerCell(m) { const r = starRisk(m), c = m.summary.crew ? '' : 'dim';
+  return `<span class="${c}"${probeTip(m)}>${r.lethal ? '<span class="no">—</span>' : `<span class="${r.T.total_mean > 600 ? 'no' : r.T.total_mean > 300 ? 'wn' : ''}">${Rad.cancerLabel(r.T.total_mean)}</span>`}</span>`; }
 const doseCell = v => v == null ? '<span class="dim">—</span>' : `<span class="${v > 600 ? 'no' : v > 300 ? 'wn' : ''}">${int(v)}</span>`;
 const go = m => m.summary.feasible ? '<span class="ok">GO</span>' : `<span class="no" title="${esc((m.summary.why || []).join('; '))}">NO-GO</span>`;
 const pct = b => b >= 0.99999 ? '100%' : b >= 0.01 ? (b * 100).toFixed(b >= 0.99 ? (b >= 0.9995 ? 2 : 1) : 0) + '%' : (b * 299792.458).toFixed(0) + ' km/s';
@@ -80,6 +84,7 @@ const SOLAR_COLS = [
   ['dv', 'Δv', 'km/s', m => m.summary.dv_total, m => f1(m.summary.dv_total, 2)],
   ['tk', 'Tankers', '', m => m.summary.tankers_needed ?? 99, m => m.summary.tankers_needed ?? '<span class="no">—</span>'],
   ['dose', 'Dose', 'mSv', m => dose(m).mean ?? 1e9, m => doseCell(dose(m).mean)],
+  ['cancer', 'Cancer', 'chance', m => dose(m).cancer ?? 9, m => cancerCell(dose(m))],
   ['feas', 'Status', '', m => m.summary.feasible ? 0 : 1, go]];
 const HIST_COLS = [
   ['name', 'Mission', '', m => m.rank, m => `${m.name}<div class="sub">${m.model}</div>`, 'l'],
@@ -88,15 +93,19 @@ const HIST_COLS = [
   ['dur', 'Cruise', '', m => m.summary.total_days, m => dur(m.summary.total_days)],
   ['c3', 'C3', 'km²/s²', m => m.summary.c3, m => f1(m.summary.c3, 1)],
   ['fb', 'Flybys', '', m => m.summary.flybys.length, m => m.summary.flybys.length ? m.summary.flybys.map(b => b[0].toUpperCase()).join('-') : '<span class="dim">direct</span>']];
+// Doses that run past 10 Sv read better in Sv, and past 10,000 Sv in powers of ten.
+const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', sup = n => String(n).split('').map(c => SUP[+c]).join('');
+function bigDose(v) { const S = v / 1000; if (v < 1e4) return int(v); if (S < 1e4) return sig(S) + ' Sv'; const e = Math.floor(Math.log10(S)); return `${(S / 10 ** e).toFixed(1)}×10${sup(e)} Sv`; }
+const durS = d => d > 365.25 * 1000 ? `${sig(d / 365.25 / 1000)}k yr` : dur(d);   // compact for the table
 const STAR_COLS = [
   ['name', 'Vehicle', '', m => m.rank, m => `${m.name}${(m.tags || []).includes('yours') ? '<span class="tag acc">SELECTED</span>' : ''}<div class="sub">${m.model}</div>`, 'l'],
-  ['crew', 'Crew', '', m => m.summary.crew, m => m.summary.crew || '<span class="dim">probe</span>'],
+  ['crew', 'Crew', '', m => m.summary.crew, m => m.summary.crew || '<span class="dim" title="Uncrewed probe">—</span>'],
   ['beta', 'Top speed', 'of c', m => m.summary.beta, m => pct(m.summary.beta)],
-  ['earth', 'Earth time', '', m => m.summary.earth_days, m => dur(m.summary.earth_days)],
-  ['ship', 'Ship time', '', m => m.summary.ship_days, m => `<span class="acc">${dur(m.summary.ship_days)}</span>`],
-  ['prop', 'Propellant', '', m => m.summary.prop_used_t, m => m.summary.kind === 'rocket' ? mass(m.summary.prop_used_t) : '<span class="dim">none</span>'],
-  ['arr', 'At target', '', m => m.summary.decel ? 0 : 1, m => m.summary.decel ? 'stops' : '<span class="wn">flyby</span>', 'l'],
-  ['dose', 'Dose', 'mSv', m => m.summary.crew ? m.summary.dose_mean : 1e12, m => m.summary.crew ? doseCell(m.summary.dose_mean) : '<span class="dim">—</span>']];
+  ['earth', 'Earth time', '', m => m.summary.earth_days, m => durS(m.summary.earth_days)],
+  ['ship', 'Ship time', '', m => m.summary.ship_days, m => `<span class="acc">${durS(m.summary.ship_days)}</span>`],
+  ['arr', 'Arrive', '', m => m.summary.decel ? 0 : 1, m => m.summary.decel ? 'stops' : '<span class="wn">flyby</span>', 'l'],
+  ['dose', 'Dose', 'mSv', m => m.summary.dose_mean, m => starDoseCell(m)],
+  ['cancer', 'Cancer', 'chance', m => starRisk(m).sort, m => starCancerCell(m)]];
 
 function renderCmp() {
   const COLS = isStar() ? STAR_COLS : isHist() ? HIST_COLS : SOLAR_COLS;
@@ -216,110 +225,321 @@ function drawIsru() {
 const MONO = 'ui-monospace,"JetBrains Mono","DejaVu Sans Mono",Menlo,monospace';
 
 // ------------------------------------------------------------------ radiation
+// Planetary missions use the live model in radiation.js: A holds the statistics over many simulated missions for
+// the current shielding, run is the one storm history being played out. Interstellar missions keep their own totals.
+let shield = { wall: 0, shelter: 20 }, A = null, A0 = null, run = null, seen = -1, doseCache = new Map(), lastStorm = null;
+export let onShield = null;
+export function setShieldHandler(f) { onShield = f; }
+export function setShield(s) { shield = { wall: +(s.wall ?? 0), shelter: +(s.shelter ?? 20) }; }
+const planetRad = () => !isStar() && !isHist() && Rad.ready() && !!(mission && mission.radiation && mission.radiation.r_au);
+// ?seed=N replays a particular storm history (first mission opened only)
+let fixedSeed = +new URLSearchParams(location.search).get('seed') || 0;
+const newSeed = () => { const s = fixedSeed || (Math.random() * 2 ** 31) >>> 0; fixedSeed = 0; return s; };
+function analyseMission(keepSeed) {
+  A = planetRad() ? Rad.analyse(mission, shield, { reg: regSel, n: 600 }) : null;
+  A0 = A && shield.shelter > 0 ? Rad.analyse(mission, { ...shield, shelter: 0 }, { reg: regSel, n: 300, series: false }) : A;
+  run = A ? Rad.rollout(A, keepSeed && run ? run.seed : newSeed()) : null; seen = -1;
+  if (A) doseCache.set(doseKey(mission), { mean: A.mean, p95: A.p95, cancer: A.cancer });
+}
+export function reroll() { if (!A) return; run = Rad.rollout(A, newSeed()); seen = -1; renderRad(); drawTimeline(); lastJd = -1; }
+const doseKey = m => `${data.missions.indexOf(m)}|${shield.wall}|${shield.shelter}|${regSel}`;
+function dose(m) {
+  if (isStar() || isHist()) { const T = m.radiation && m.radiation.totals; return T ? { mean: T.total_mean, p95: T.total_p95, cancer: Rad.cancerChance(T.total_mean) } : {}; }
+  if (!Rad.ready() || !m.radiation || !m.radiation.r_au) return {};
+  const k = doseKey(m);
+  if (!doseCache.has(k)) { const a = Rad.analyse(m, shield, { reg: regSel, n: 200, series: false }); doseCache.set(k, { mean: a.mean, p95: a.p95, cancer: a.cancer }); }
+  return doseCache.get(k);
+}
+const fmtP = (p, n) => p <= 0 ? (n ? `<${(100 / n).toFixed(1)}%` : '0%') : p < 0.001 ? '<0.1%' : (p * 100).toFixed(p < 0.1 ? 1 : 0) + '%';
+const lvlCls = (v, hi, med) => v > hi ? 'no' : v > med ? 'wn' : 'ok';
+
 function renderReg() {
   const on = !!(mission && mission.summary.surface); $('regseg').style.display = on ? '' : 'none';
   const cur = regSel ?? (mission && mission.radiation ? mission.radiation.regolith_used ?? 0 : 0);
   $('regseg').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.r === +cur));
 }
+function renderShield() {
+  $('wallseg').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.w === shield.wall));
+  $('shseg').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.s === shield.shelter));
+  const dm = Rad.shieldMass(shield), tk = mission && mission.summary.tankers_needed;
+  $('shmass').innerHTML = `${dm >= 0 ? '+' : '−'}${int(Math.abs(dm))} t${tk != null ? ` · ${tk} tankers` : ' · <span class="no">no-go</span>'}`;
+}
+function applyShield() {
+  if (data.vehicleParams && !isStar() && !isHist()) resizeAll(data, { ...data.vehicleParams, ...shield });
+  doseCache.clear(); analyseMission(true); onShield && onShield({ ...shield });
+  renderCmp(); renderBudget(); renderRad(); renderHazards(); drawTimeline(); lastJd = -1;
+}
 export function bindRadControls() {
-  $('regseg').querySelectorAll('button').forEach(b => b.onclick = () => { regSel = +b.dataset.r; renderReg(); renderCmp(); renderRad(); lastJd = -1; });
-  $('shelter').onchange = e => { sheltered = e.target.checked; renderCmp(); renderRad(); lastJd = -1; };
+  $('regseg').querySelectorAll('button').forEach(b => b.onclick = () => { regSel = +b.dataset.r; renderReg(); doseCache.clear(); analyseMission(true); renderCmp(); renderRad(); renderHazards(); lastJd = -1; });
+  $('wallseg').querySelectorAll('button').forEach(b => b.onclick = () => { shield.wall = +b.dataset.w; applyShield(); });
+  $('shseg').querySelectorAll('button').forEach(b => b.onclick = () => { shield.shelter = +b.dataset.s; applyShield(); });
+  $('reroll').onclick = () => reroll();
+  $('solarchart').addEventListener('click', ev => {   // click a mission marker to fly it
+    const hit = solarHits.find(h => Math.abs(h.x - (ev.offsetX)) < 6 && Math.abs(h.y - ev.offsetY) < 8); if (hit) select(hit.i);
+  });
 }
 function bar(label, v, lim, limLabel) {
   const f = v / lim, c = f > 1 ? 'no' : f > 0.6 ? 'wn' : 'ok';
-  return `<div class="lim"><div class="lt"><span>${label}</span><b class="${c}">${int(v)} <em>/ ${lim} mSv</em></b></div><div class="lbar"><i class="${c}" style="width:${Math.min(100, f * 100).toFixed(1)}%"></i>${f > 1 ? '' : ''}</div><div class="ln">${limLabel}</div></div>`;
+  return `<div class="lim"><div class="lt"><span>${label}</span><b class="${c}">${v < 1e4 ? int(v) : bigDose(v)} <em>/ ${lim} mSv</em></b></div><div class="lbar"><i class="${c}" style="width:${Math.min(100, f * 100).toFixed(1)}%"></i></div><div class="ln">${limLabel}</div></div>`;
+}
+function riskTiles(mean, bad, extra = '') {
+  return `<div class="rk ${lvlCls(mean, 600, 300)}" title="Extra lifetime chance of cancer caused by this mission's radiation, on top of the ~40% everyone has"><span>Cancer from radiation</span><b>${Rad.cancerLabel(mean)}</b><em>${mean > 10000 ? `${sig(mean / 1000)} Sv, far beyond any data` : `bad case ${Rad.cancerLabel(bad)} · ${int(mean)} mSv`}</em></div>${extra}`;
 }
 function renderRad() {
-  const R = mission.radiation;
-  $('shelterwrap').style.display = isStar() ? 'none' : '';
-  if (!R) { $('limits').innerHTML = `<div class="empty">${isHist() ? 'Robotic mission: no crew aboard, so no crew dose.' : 'No radiation analysis for this case (it is a validation trajectory).'}</div>`; $('radnow').innerHTML = ''; $('radbreak').innerHTML = ''; return; }
-  const T = R.totals, sh = sheltered, D = isStar() ? { mean: T.total_mean, p95: T.total_p95 } : dose(mission);
-  const w30 = sh ? T.win30_p95_sh : T.win30_p95, w365 = sh ? T.win365_p95_sh : T.win365_p95;
-  const crewNote = isStar() && !mission.summary.crew ? '<div class="empty">Uncrewed probe. Numbers show what a crew would receive in this hull.</div>' : '';
-  $('limits').innerHTML = crewNote + bar('Whole mission, expected', D.mean, 600, 'NASA career limit (NASA-STD-3001)') +
-    bar('Worst 30 days, bad case', w30, 250, '30-day blood-forming organ limit') + bar('Worst year, bad case', w365, 500, '1-year blood-forming organ limit');
-  const rows = isStar()
-    ? [['Cosmic rays', T.gcr, `${sig(T.gcr_p05)}–${sig(T.gcr_p95)}`], ['Shielding', null, mission.params.absorbs ? 'Astrophage fuel (absorbs nearly everything)' : `${sig(mission.params.shield)} g/cm² water-equivalent`], ['Time aboard', null, dur(T.days) + ' ship time']]
-    : [['Cosmic rays', T.gcr, `range ${sig(T.gcr_p05)}–${sig(T.gcr_p95)}`], ['Solar storms', sh ? T.spe_mean_sh : T.spe_mean, `bad case ${sig(sh ? T.spe_p95_sh : T.spe_p95)}`],
-      ['Radiation belts', sh ? T.belts_sh : T.belts, 'Earth, Jupiter'], ...(T.surface ? [['On the surface', T.surface * regK(mission), `0.64 mSv/day × ${(regK(mission) * regF(R, R.regolith_used ?? 0)).toFixed(2)} habitat`]] : []),
-      ['Total', D.mean, `bad case ${sig(D.p95)}`]];
-  $('radbreak').innerHTML = rows.map(r => `<tr><td class="l">${r[0]}</td><td>${r[1] == null ? '' : sig(r[1]) + ' <em>mSv</em>'}</td><td class="l dim">${r[2]}</td></tr>`).join('');
-  $('radnote').textContent = isStar() ? 'Deep-space rate from Curiosity’s cruise to Mars (1.84 mSv/day), 1.36× beyond the heliopause, scaled for shielding. Rough estimate.'
-    : `${mission.mode && mission.mode !== 'one-way' ? 'Whole mission, there and back.' : 'One-way transit.'} Hull ${T.hull_gcm2} g/cm² steel, storm shelter ${T.shelter_gcm2} g/cm² water. Estimates; method in VERIFICATION.md.`;
-  $('shval').textContent = `${T.shelter_gcm2} g/cm²`;
+  const R = mission.radiation, pr = planetRad();
+  $('shieldctl').style.display = pr ? '' : 'none'; $('reroll').style.display = pr ? '' : 'none'; $('solarwrap').style.display = pr ? '' : 'none';
+  if (!R) { $('limits').innerHTML = `<div class="empty">${isHist() ? 'Robotic mission: no crew aboard, so no crew dose.' : 'No radiation analysis for this case (it is a validation trajectory).'}</div>`; $('radnow').innerHTML = ''; $('radbreak').innerHTML = ''; $('risk').innerHTML = ''; $('radnote').textContent = ''; return; }
+  if (!pr) return renderRadStar();
+  renderShield();
+  const S = shield, ars = A.pArs, big = A.pBig;
+  $('risk').innerHTML = riskTiles(A.mean, A.p95,
+    `<div class="rk ${ars > 0.01 ? 'no' : ars > 0.001 ? 'wn' : 'ok'}" title="Nausea and vomiting from a big dose in a day or two: about 1 in 10 people at 1 Sv"><span>Radiation sickness</span><b>${fmtP(ars, A.n)}</b><em>${S.shelter ? `${fmtP(A0.pArs, A0.n)} with no shelter` : 'no shelter fitted'}</em></div>` +
+    `<div class="rk ${big > 0.5 ? 'wn' : ''}"><span>Big solar storm</span><b>${fmtP(big)}</b><em>bad case ${int(A.spe_p95)} mSv${S.shelter ? `, ${int(A0.spe_p95)} unsheltered` : ''}</em></div>`);
+  $('limits').innerHTML = bar('Whole mission, expected', A.mean, 600, 'NASA career limit (NASA-STD-3001)') +
+    bar('Worst 30 days, bad case', A.win30, 250, '30-day blood-forming organ limit') + bar('Worst year, bad case', A.win365, 500, '1-year blood-forming organ limit');
+  const bodies = [...new Set(A.belts.map(b => b.body === 'earth' ? 'Earth' : cap(b.body)))].join(', ') || 'none crossed';
+  const rows = [['Cosmic rays', A.gcr - A.surface, `range ${sig(A.gcr_p05)}–${sig(A.gcr_p95)}${S.wall ? `, wall cuts ${int((1 - A.f0) * 100)}%` : ''}`], ['Solar storms', A.spe_mean, `bad case ${sig(A.spe_p95)}`],
+    ['Radiation belts', A.belt, bodies], ...(A.surface ? [['On the surface', A.surface, `${sig(A.surface / Math.max(1, (mission.phases || []).filter(p => p.name.includes('surface')).reduce((s, p) => s + p.jd1 - p.jd0, 0)))} mSv/day in the habitat`]] : []),
+    ['Total', A.mean, `bad case ${sig(A.p95)}`]];
+  $('radbreak').innerHTML = rows.map(r => `<tr><td class="l">${r[0]}</td><td>${sig(r[1])} <em>mSv</em></td><td class="l dim">${r[2]}</td></tr>`).join('');
+  $('radnote').textContent = `${mission.mode && mission.mode !== 'one-way' ? 'Whole mission, there and back.' : 'One-way transit.'} Expected values over ${A.n} simulated missions with random solar cycles and storms. ` +
+    `Hull ${sig(Rad.HULL)} g/cm² steel${S.wall ? ` plus ${S.wall} g/cm² of water round the cabin` : ''}; ${S.shelter ? `storm shelter ${S.shelter} g/cm² water` : 'no storm shelter'}. Cancer chance uses ${Rad.RISK.cancerPerSv * 100}% per Sv (BEIR VII incidence, age 35–40; NASA puts the real uncertainty at about ×3 either way). Estimates; method in VERIFICATION.md.`;
 }
+function renderRadStar() {
+  const R = mission.radiation, T = R.totals;
+  const r = starRisk(mission), probe = !mission.summary.crew, pr = probe ? ' <span class="dim">if crewed</span>' : '';
+  $('risk').innerHTML = (r.lethal
+    ? `<div class="rk no"><span>Cancer from radiation${pr}</span><b>—</b><em>the crew would not survive the trip</em></div>`
+    : riskTiles(T.total_mean, T.total_p95).replace('Cancer from radiation', 'Cancer from radiation' + pr)) +
+    `<div class="rk ${r.lethal ? 'no' : r.sick > 0.01 ? 'wn' : 'ok'}"><span>Radiation sickness${pr}</span><b>${r.lethal ? 'LETHAL' : fmtP(r.sick)}</b><em>${r.lethal ? `${bigDose(T.peak_rate / 24)} per hour at cruise` : `peak ${sig(T.peak_rate)} mSv/day`}</em></div>` +
+    `<div class="rk ${T.gas > 1 ? 'no' : ''}"><span>Interstellar gas</span><b>${T.gas > 1 ? (T.gas < 1e4 ? int(T.gas) + ' mSv' : bigDose(T.gas)) : 'stopped'}</b><em>${mission.params.absorbs ? 'Astrophage absorbs it' : `${sig(mission.params.frontal)} g/cm² bow shield`}</em></div>`;
+  const crewNote = probe ? '<div class="empty">Uncrewed probe. Numbers show what a crew would receive in this hull.</div>' : '';
+  $('limits').innerHTML = crewNote + bar('Whole mission, expected', T.total_mean, 600, 'NASA career limit (NASA-STD-3001)') +
+    bar('Worst 30 days, bad case', T.win30_p95, 250, '30-day blood-forming organ limit') + bar('Worst year, bad case', T.win365_p95, 500, '1-year blood-forming organ limit');
+  const rows = [['Cosmic rays', T.gcr, `${sig(T.gcr_p05)}–${sig(T.gcr_p95)}`], ...(T.gas ? [['Interstellar gas', T.gas, 'hydrogen hitting the bow at cruise speed']] : []), ['Shielding', null, mission.params.absorbs ? 'Astrophage fuel (absorbs nearly everything)' : `${sig(mission.params.shield)} g/cm² water-equivalent`], ['Time aboard', null, dur(T.days) + ' ship time']];
+  $('radbreak').innerHTML = rows.map(r => `<tr><td class="l">${r[0]}</td><td>${r[1] == null ? '' : sig(r[1]) + ' <em>mSv</em>'}</td><td class="l dim">${r[2]}</td></tr>`).join('');
+  $('radnote').textContent = 'Cosmic rays: Curiosity’s cruise rate (1.84 mSv/day), 1.36× beyond the heliopause, scaled for shielding. Interstellar gas: 0.2 hydrogen atoms per cm³ hitting the bow at cruise speed, stopped only if the forward shield is thicker than the proton range. Cancer chance 8% per Sv (BEIR VII). Rough estimates; relativistic boosting of cosmic rays is not modelled.';
+}
+
+// index and fraction of jd in the radiation grid
+function gridAt(J, jd) { const n = J.length; let lo = 0, hi = n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (J[m] <= jd) lo = m; else hi = m; } const k = Math.min(lo, n - 2); return [k, Math.max(0, Math.min(1, (jd - J[k]) / (J[k + 1] - J[k] || 1)))]; }
+const lerpAt = (a, k, f) => a[k] + f * (a[k + 1] - a[k]);
+
 const dc = () => $('dosechart');
-function drawChart(jd) {
-  const cv = dc(), r = cv.getBoundingClientRect(); if (!r.width || !r.height) return;
+function chartCtx(cv) {
+  const r = cv.getBoundingClientRect(); if (!r.width || !r.height) return null;
   const p = Math.min(devicePixelRatio, 2); if (cv.width !== Math.round(r.width * p) || cv.height !== Math.round(r.height * p)) { cv.width = r.width * p; cv.height = r.height * p; }
-  const g = cv.getContext('2d'); g.setTransform(p, 0, 0, p, 0, 0); const DW = r.width, DH = r.height; g.clearRect(0, 0, DW, DH); g.font = '10px ' + MONO;
-  const R = mission && mission.radiation; if (!R) { g.fillStyle = C.axis; g.fillText('No radiation data', 10, 20); return; }
-  const L = 44, Rr = 10, T = 26, B = 22, w = DW - L - Rr, h = DH - T - B;
-  const star = isStar(), xs = star ? R.tau : R.jd.map(x => x - R.jd[0]), tmax = xs[xs.length - 1] || 1, yrs = tmax > 800;
-  const tot = adj(sheltered ? R.tot_mean_sh : R.tot_mean), p95 = adj(sheltered ? R.tot_p95_sh : R.tot_p95), spe = sheltered ? R.spe_mean_sh : R.spe_mean, belt = sheltered ? R.belt_cum_sh : R.belt_cum;
-  const ymax = Math.max(50, ...p95) * 1.12, X = v => L + v / tmax * w, Y = v => T + h - v / ymax * h;
-  if (!star) for (const ph of mission.phases || []) if (ph.name.includes('stay')) { const a = X(ph.jd0 - R.jd[0]), b = X(ph.jd1 - R.jd[0]); g.fillStyle = 'rgba(156,207,122,.07)'; g.fillRect(a, T, b - a, h); g.fillStyle = '#6f8f5a'; g.fillText('on surface', a + 4, T + h - 5); }
+  const g = cv.getContext('2d'); g.setTransform(p, 0, 0, p, 0, 0); g.clearRect(0, 0, r.width, r.height); g.font = '10px ' + MONO; return [g, r.width, r.height];
+}
+function legend(g, items, DW) {
+  let lx = 44, ly = 8;
+  for (const [k, c, dash] of items) {
+    const w = g.measureText(k.toUpperCase()).width + 26; if (lx + w > DW - 4) { lx = 44; ly += 12; }
+    if (dash === 'band') { g.fillStyle = 'rgba(242,242,242,.18)'; g.fillRect(lx, ly - 2, 10, 7); }
+    else { g.strokeStyle = c; g.lineWidth = 2.5; g.setLineDash(dash || []); g.beginPath(); g.moveTo(lx, ly + 1); g.lineTo(lx + 10, ly + 1); g.stroke(); g.setLineDash([]); g.lineWidth = 1; }
+    g.fillStyle = '#8a8a8a'; g.fillText(k.toUpperCase(), lx + 14, ly + 4); lx += w;
+  }
+  return ly;
+}
+function axes(g, L, T, w, h, ymax, tmax, yrs, DH, xlabel) {
+  const X = v => L + v / tmax * w, Y = v => T + h - v / ymax * h;
   g.strokeStyle = C.grid; g.lineWidth = 1; g.fillStyle = C.axis;
-  const step = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000].find(s => ymax / s <= 6) || 1e5;
-  for (let v = 0; v <= ymax; v += step) { g.beginPath(); g.moveTo(L, Y(v) + .5); g.lineTo(L + w, Y(v) + .5); g.stroke(); g.fillText(int(v), 4, Y(v) + 3); }
+  const e = Math.pow(10, Math.floor(Math.log10(Math.max(ymax, 10) / 6))), step = [1, 2, 5, 10].map(k => k * e).find(s => ymax / s <= 6);   // ~6 gridlines at any scale
+  const sv = ymax >= 1e4, lab = v => !sv ? int(v) : v / 1000 < 1e4 ? sig(v / 1000) : (v / 1000).toExponential(0).replace('e+', 'e');   // axis in Sv when huge
+  for (let v = 0; v <= ymax; v += step) { g.beginPath(); g.moveTo(L, Y(v) + .5); g.lineTo(L + w, Y(v) + .5); g.stroke(); g.fillText(lab(v), 4, Y(v) + 3); }
   const unit = yrs ? 365.25 : 1, xsStep = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 5000, 10000, 50000].map(s => s * (yrs ? 365.25 : 1)).concat(yrs ? [] : [30, 60, 90, 180, 365]).sort((a, b) => a - b).find(s => tmax / s <= 7) || tmax;
   for (let v = 0; v <= tmax + 1e-9; v += xsStep) { g.beginPath(); g.moveTo(X(v) + .5, T); g.lineTo(X(v) + .5, T + h); g.stroke(); g.fillText(int(v / unit), X(v) - 4, DH - 7); }
-  g.textAlign = 'right'; g.fillText(star ? (yrs ? 'ship years →' : 'ship days →') : (yrs ? 'years →' : 'mission day →'), L + w - 4, T + h - 6); g.textAlign = 'left'; g.fillText('mSv', 4, T - 8);
+  g.textAlign = 'right'; g.fillText(xlabel, L + w - 4, T + h - 6); g.textAlign = 'left';
+  if (600 <= ymax && ymax < 6e4) { g.strokeStyle = C.lim; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(L, Y(600)); g.lineTo(L + w, Y(600)); g.stroke(); g.setLineDash([]); g.fillStyle = C.lim; g.fillText('career limit 600', L + w - 100, Y(600) - 4); }
+  return [X, Y, sv ? 'Sv' : 'mSv'];
+}
+function drawChart(jd) {
+  const c = chartCtx(dc()); if (!c) return; const [g, DW, DH] = c;
+  const R = mission && mission.radiation; if (!R) { g.fillStyle = C.axis; g.fillText('No radiation data', 10, 20); return; }
+  if (!A) return drawChartStar(g, DW, DH, jd);
+  const P = A.P, J = P.J, N = J.length, xs = J.map(x => x - J[0]), tmax = xs[N - 1] || 1, yrs = tmax > 800;
+  const items = [['This run', C.tot], ['Expected', '#8a8a8a', [4, 3]], ['5–95% of runs', null, 'band'], ['Cosmic rays', C.gcr], ['Storms', C.spe], ['Belts', C.belt], ...(A.surface ? [['Surface', C.surf]] : [])];
+  const T = legend(g, items, DW) + 18, L = 44, B = 22, w = DW - L - 10, h = DH - T - B;
+  const ymax = Math.max(50, A.band.hi[N - 1], run.tot[N - 1]) * 1.1;
+  if (P.surf.some(Boolean)) for (const ph of mission.phases || []) if (ph.name.includes('stay')) { const a = L + (ph.jd0 - J[0]) / tmax * w, b = L + (ph.jd1 - J[0]) / tmax * w; g.fillStyle = 'rgba(156,207,122,.07)'; g.fillRect(a, T, b - a, h); g.fillStyle = '#6f8f5a'; g.fillText('on surface', a + 4, T + h - 5); }
+  const [X, Y, unit] = axes(g, L, T, w, h, ymax, tmax, yrs, DH, yrs ? 'years →' : 'mission day →');
+  g.fillStyle = C.axis; g.fillText(unit, 4, T - 6);
+  const now = jd - J[0], [kn, fn] = gridAt(J, jd), upto = kn + 1;
+  const line = (arr, col, dash, lw = 1, n = N) => { g.strokeStyle = col; g.setLineDash(dash || []); g.lineWidth = lw; g.beginPath(); for (let k = 0; k < n; k++) k ? g.lineTo(X(xs[k]), Y(arr[k])) : g.moveTo(X(xs[k]), Y(arr[k])); g.stroke(); g.setLineDash([]); g.lineWidth = 1; };
+  g.fillStyle = 'rgba(242,242,242,.07)'; g.beginPath(); for (let k = 0; k < N; k++) g.lineTo(X(xs[k]), Y(A.band.hi[k])); for (let k = N - 1; k >= 0; k--) g.lineTo(X(xs[k]), Y(A.band.lo[k])); g.closePath(); g.fill();
+  line(A.band.mid, '#8a8a8a', [4, 3]);
+  if (A.surface) line(A.surfC, C.surf);
+  line(A.gcrC.map((v, i) => v - A.surfC[i]), C.gcr); line(A.beltC, C.belt);
+  // this run is only known up to now: storms appear as they happen
+  const runNow = Array.from(run.tot.slice(0, upto)), speNow = Array.from(run.speC.slice(0, upto));
+  runNow.push(lerpAt(run.tot, kn, fn)); speNow.push(lerpAt(run.speC, kn, fn));
+  const xsNow = xs.slice(0, upto).concat([Math.min(now, tmax)]);
+  const lineNow = (arr, col, lw) => { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); arr.forEach((v, k) => k ? g.lineTo(X(xsNow[k]), Y(v)) : g.moveTo(X(xsNow[k]), Y(v))); g.stroke(); g.lineWidth = 1; };
+  lineNow(speNow, C.spe, 1.5); lineNow(runNow, C.tot, 2);
+  for (const st of run.storms) if (st.jd <= jd) {
+    const x = X(st.jd - J[0]), sz = Rad.stormClass(st.F);
+    g.fillStyle = C.spe; g.beginPath(); g.moveTo(x, T + 1); g.lineTo(x - 4, T - 6); g.lineTo(x + 4, T - 6); g.closePath(); g.fill();
+    if (st.dose >= 5 || sz === 'severe' || sz === 'extreme') { g.fillText(`+${sig(st.dose)}`, x + 5, T + 9); g.fillStyle = C.spe; }
+  }
+  const xn = X(Math.min(now, tmax)); g.strokeStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.moveTo(xn + .5, T); g.lineTo(xn + .5, T + h); g.stroke();
+  g.fillStyle = C.tot; g.fillRect(xn - 2.5, Y(runNow[runNow.length - 1]) - 2.5, 5, 5);
+}
+function drawChartStar(g, DW, DH, jd) {
+  const R = mission.radiation, xs = R.tau, tmax = xs[xs.length - 1] || 1, yrs = tmax > 800;
+  const T = legend(g, [['Total', C.tot], ['Bad case', C.p95, [3, 3]], ['Cosmic rays', C.gcr], ...(R.totals.gas ? [['Interstellar gas', C.belt]] : [])], DW) + 18, L = 44, w = DW - L - 10, h = DH - T - 22;
+  const ymax = Math.max(50, ...R.tot_p95) * 1.12, [X, Y, unit] = axes(g, L, T, w, h, ymax, tmax, yrs, DH, yrs ? 'ship years →' : 'ship days →');
+  g.fillStyle = C.axis; g.fillText(unit, 4, T - 6);
   const line = (arr, col, dash, lw = 1) => { g.strokeStyle = col; g.setLineDash(dash || []); g.lineWidth = lw; g.beginPath(); arr.forEach((v, k) => k ? g.lineTo(X(xs[k]), Y(v)) : g.moveTo(X(xs[k]), Y(v))); g.stroke(); g.setLineDash([]); g.lineWidth = 1; };
-  if (600 <= ymax) { g.strokeStyle = C.lim; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(L, Y(600)); g.lineTo(L + w, Y(600)); g.stroke(); g.setLineDash([]); g.fillStyle = C.lim; g.fillText('career limit 600', L + w - 100, Y(600) - 4); }
-  const gc = R.surf_cum ? R.gcr_cum.map((v, i) => v - R.surf_cum[i]) : R.gcr_cum;
-  if (R.surf_cum && R.totals.surface) line(adj(R.surf_cum), C.surf);
-  if (!star) { line(spe, C.spe); line(belt, C.belt); }
-  line(gc, C.gcr); line(p95, C.p95, [3, 3]); line(tot, C.tot, null, 2);
-  const now = star ? starAt(jd).tau : jd - R.jd[0], xn = X(Math.min(now, tmax));
-  g.strokeStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.moveTo(xn + .5, T); g.lineTo(xn + .5, T + h); g.stroke();
-  let lx = L; const items = [['Total', C.tot], ['Bad case', C.p95], ['Cosmic rays', C.gcr], ...(star ? [] : [['Solar storms', C.spe], ['Belts', C.belt]]), ...(R.totals.surface ? [['Surface', C.surf]] : [])];
-  for (const [k, c] of items) { g.fillStyle = c; g.fillRect(lx, 8, 10, 2.5); g.fillStyle = '#8a8a8a'; g.fillText(k.toUpperCase(), lx + 14, 12); lx += g.measureText(k).width + 26; }
+  line(R.gcr_cum, C.gcr); if (R.gas_cum && R.totals.gas) line(R.gas_cum, C.belt); line(R.tot_p95, C.p95, [3, 3]); line(R.tot_mean, C.tot, null, 2);
+  const xn = X(Math.min(starAt(jd).tau, tmax)); g.strokeStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.moveTo(xn + .5, T); g.lineTo(xn + .5, T + h); g.stroke();
 }
-function radAt(jd) {
-  const R = mission && mission.radiation; if (!R) return null; const J = R.jd, n = J.length;
-  let lo = 0, hi = n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (J[m] <= jd) lo = m; else hi = m; } const k = Math.min(lo, n - 2);
-  const f = Math.max(0, Math.min(1, (jd - J[k]) / (J[k + 1] - J[k] || 1))), I = a => a[k] + f * (a[k + 1] - a[k]);
-  const tot = adj(sheltered ? R.tot_mean_sh : R.tot_mean), spe = sheltered ? R.spe_mean_sh : R.spe_mean;
-  const dt = (J[k + 1] - J[k]) || 1, speRate = (spe[k + 1] - spe[k]) / dt;
-  const belt = (R.belts || []).find(b => Math.abs(b.jd - jd) < 1.5);
-  const onSurf = (mission.phases || []).some(p => p.name === 'surface stay' && jd >= p.jd0 && jd <= p.jd1);
-  return { onSurf, cum: I(tot), p95: I(adj(sheltered ? R.tot_p95_sh : R.tot_p95)), gcr: I(R.gcr_rate) * (onSurf ? regK(mission) : 1), spe: speRate, r: I(R.r_au), p30: I(R.spe_p30), belt };
+
+// Solar cycle: sunspot forecast band, the cosmic-ray rate it controls, and where every candidate launch sits.
+let solarBand = null, solarHits = [];
+function drawSolar(jd) {
+  if (!A) return; const c = chartCtx($('solarchart')); if (!c) return; const [g, DW, DH] = c;
+  const ms = data.missions.map((m, i) => [m, i]).filter(([m]) => m.radiation && m.radiation.jd);
+  const yl = ms.map(([m]) => Rad.yr(m.radiation.jd[0])), ye = ms.map(([m]) => Rad.yr(m.radiation.jd[m.radiation.jd.length - 1]));
+  const y0 = Math.min(2025, Math.floor(Math.min(...yl)) - 1), y1 = Math.max(2041, Math.ceil(Math.max(...ye)) + 1);
+  if (!solarBand || solarBand.y0 !== y0 || solarBand.y1 !== y1) solarBand = { y0, y1, ...Rad.ssnBand(y0, y1, 1 / 12) };
+  const L = 34, Rr = 44, T = 14, B = 34, w = DW - L - Rr, h = DH - T - B, X = y => L + (y - y0) / (y1 - y0) * w;
+  const smax = 320, gmax = 3.2, Ys = v => T + h - v / smax * h, Yg = v => T + h - v / gmax * h, S = solarBand;
+  const Ja = A.P.J, a = Rad.yr(Ja[0]), b = Rad.yr(Ja[Ja.length - 1]);
+  g.fillStyle = 'rgba(242,242,242,.07)'; g.fillRect(X(a), T, X(b) - X(a), h);
+  g.strokeStyle = C.grid; g.fillStyle = C.axis;
+  for (let v = 0; v <= smax; v += 100) { g.beginPath(); g.moveTo(L, Ys(v) + .5); g.lineTo(L + w, Ys(v) + .5); g.stroke(); g.fillText(v, 4, Ys(v) + 3); }
+  g.textAlign = 'right'; for (let v = 0; v <= 3; v++) g.fillText(v.toFixed(0), DW - 4, Yg(v) + 3); g.textAlign = 'left';
+  const ystep = (y1 - y0) > 16 ? 4 : 2;
+  for (let y = Math.ceil(y0 / ystep) * ystep; y <= y1; y += ystep) { g.beginPath(); g.moveTo(X(y) + .5, T); g.lineTo(X(y) + .5, T + h); g.stroke(); g.fillText(y, X(y) - 12, T + h + 11); }
+  g.fillStyle = 'rgba(224,176,80,.16)'; g.beginPath(); S.ys.forEach((y, k) => g.lineTo(X(y), Ys(S.hi[k]))); for (let k = S.ys.length - 1; k >= 0; k--) g.lineTo(X(S.ys[k]), Ys(S.lo[k])); g.closePath(); g.fill();
+  g.strokeStyle = C.spe; g.lineWidth = 1.5; g.beginPath(); S.ys.forEach((y, k) => k ? g.lineTo(X(y), Ys(S.med[k])) : g.moveTo(X(y), Ys(S.med[k]))); g.stroke();
+  g.strokeStyle = C.gcr; g.setLineDash([4, 3]); g.beginPath(); S.ys.forEach((y, k) => { const v = Rad.gcrRate(Rad.phi(y), 1) * A.f0; k ? g.lineTo(X(y), Yg(v)) : g.moveTo(X(y), Yg(v)); }); g.stroke(); g.setLineDash([]); g.lineWidth = 1;
+  // label the turning points of the median cycle
+  g.font = '9px ' + MONO;
+  // smooth the median a little (observed months are noisy), then mark one max/min per turning point
+  const sm = S.med.map((_, k) => { const a = S.med.slice(Math.max(0, k - 6), k + 7); return a.reduce((x, y) => x + y, 0) / a.length; });
+  for (let k = 12, last = -99; k < S.ys.length - 12; k++) {
+    const v = sm[k], win = sm.slice(k - 12, k + 13), isMax = v === Math.max(...win) && v > 90, isMin = v === Math.min(...win) && v < 40;
+    if ((isMax || isMin) && S.ys[k] - last > 3) { g.fillStyle = isMax ? C.spe : '#8a8a8a'; g.fillText(`${isMax ? 'MAX' : 'MIN'} ${S.ys[k].toFixed(0)}`, X(S.ys[k]) - 20, Ys(isMax ? Math.max(v, S.hi[k]) : v) - 6); last = S.ys[k]; }
+  }
+  for (const st of run.storms) if (st.jd <= jd) { const x = X(Rad.yr(st.jd)); g.fillStyle = C.spe; g.fillRect(x - 1, T, 2, 6); }
+  g.fillStyle = C.spe; g.fillText('SUNSPOTS', L + 4, T + 9); g.fillStyle = C.gcr; g.textAlign = 'right'; g.fillText('COSMIC RAYS mSv/day', L + w - 4, T + 9); g.textAlign = 'left';
+  // candidate missions: launch date, coloured by expected dose
+  solarHits = []; const yRow = T + h + 22;
+  g.fillStyle = C.axis; g.fillText('LAUNCH', 2, yRow + 3);
+  for (const [m, i] of ms) {
+    const d = dose(m).mean, x = X(Rad.yr(m.radiation.jd[0])), col = d > 600 ? C.lim : d > 300 ? '#e0b050' : '#5fbf7f', on = i === mIndex;
+    g.fillStyle = col; g.fillRect(x - (on ? 3.5 : 2.5), yRow - (on ? 3.5 : 2.5), on ? 7 : 5, on ? 7 : 5);
+    if (on) { g.strokeStyle = '#f2f2f2'; g.strokeRect(x - 5.5, yRow - 5.5, 11, 11); }
+    solarHits.push({ x, y: yRow, i });
+  }
+  const yn = Rad.yr(jd); g.strokeStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.moveTo(X(yn) + .5, T); g.lineTo(X(yn) + .5, T + h); g.stroke();
+  g.font = '10px ' + MONO;
 }
+
 function updateRadNow(jd) {
-  const q = radAt(jd); if (!q) return;
-  const items = isStar()
-    ? [['Dose so far', q.cum.toFixed(1), 'mSv'], ['Dose rate', q.gcr.toFixed(2), 'mSv/day'], ['From Sun', q.r < 0.01 ? (q.r * 63241).toFixed(0) + ' AU' : q.r.toFixed(2) + ' ly', '']]
-    : [['Dose so far', q.cum.toFixed(1), 'mSv'], [q.onSurf ? 'Surface rate' : 'Cosmic rays', q.gcr.toFixed(2), 'mSv/day'], ['Storm risk', (q.p30 * 100).toFixed(1), '% / 30 d'], ['From Sun', q.r.toFixed(2), 'AU']];
+  if (!A) return updateRadNowStar(jd);
+  const P = A.P, J = P.J, [k, f] = gridAt(J, jd), dt = (J[k + 1] - J[k]) || 1;
+  const onSurf = !!P.surf[k], rate = (A.gcrC[k + 1] - A.gcrC[k]) / dt, past = run.storms.filter(s => s.jd <= jd), nb = past.filter(s => run.big.includes(s)).length;
+  const ss = Rad.ssn(Rad.yr(jd)), act = ss > 110 ? 'high' : ss < 40 ? 'low' : 'moderate';
+  const items = [['Dose so far · this run', lerpAt(run.tot, k, f).toFixed(1), 'mSv'], [onSurf ? 'Surface rate' : 'Cosmic rays', rate.toFixed(2), 'mSv/day'],
+    ['Storms so far', past.length ? `${past.length}${nb ? ` · ${nb} big` : ''}` : '0', ''], ['Sunspots', int(ss), act], ['From Sun', lerpAt(P.R.r_au, k, f).toFixed(2), 'AU']];
+  // a storm stays on screen for 4 mission days or 4 real seconds, whichever is longer, so it reads at any speed
+  const recent = lastStorm && performance.now() - lastStorm.at < 4000 && lastStorm.s.jd <= jd ? lastStorm.s : null;
+  const st = recent || past.filter(s => jd - s.jd < 4).sort((a, b) => b.dose - a.dose)[0], belt = A.belts.find(b => Math.abs(b.jd - jd) < 1.5);
   $('radnow').innerHTML = items.map(([k, v, u]) => `<div><span>${k}</span><b>${v} <em>${u}</em></b></div>`).join('') +
-    (q.belt ? `<div class="wide alert">Crossing radiation belt: ${esc(q.belt.label)}, ${sig(sheltered ? q.belt.sheltered : q.belt.hull)} mSv</div>` : '');
+    (st ? `<div class="wide alert storm">Solar storm (${Rad.stormClass(st.F)}): ${st.surf ? 'crew on the surface' : shield.shelter ? 'crew in the shelter' : 'no shelter aboard'}, +${sig(st.dose)} mSv${!st.surf && shield.shelter ? ` (${sig(st.cabin)} without the shelter)` : ''}</div>` : '') +
+    (belt ? `<div class="wide alert">Crossing radiation belt: ${esc(belt.label)}, ${sig(belt.dose)} mSv</div>` : '');
+}
+function updateRadNowStar(jd) {
+  const R = mission && mission.radiation; if (!R) return;
+  const [k, f] = gridAt(R.jd, jd), q = starAt(jd);
+  const items = [['Dose so far', lerpAt(R.tot_mean, k, f).toFixed(1), 'mSv'], ['Dose rate', lerpAt(R.gcr_rate, k, f).toFixed(2), 'mSv/day'], ['From Sun', q.x < 0.01 ? (q.x * 63241).toFixed(0) + ' AU' : q.x.toFixed(2) + ' ly', '']];
+  $('radnow').innerHTML = items.map(([k, v, u]) => `<div><span>${k}</span><b>${v} <em>${u}</em></b></div>`).join('');
+}
+// dose rate the crew feels right now (cabin cutaway colouring)
+function rateNow(jd) {
+  if (!A) { const R = mission && mission.radiation; if (!R) return null; const [k, f] = gridAt(R.jd, jd); return lerpAt(R.gcr_rate, k, f); }
+  const J = A.P.J, [k] = gridAt(J, jd), dt = (J[k + 1] - J[k]) || 1, st = run.storms.filter(s => s.jd <= jd && jd - s.jd < 2), belt = A.belts.find(b => Math.abs(b.jd - jd) < 1.5);
+  return (A.gcrC[k + 1] - A.gcrC[k]) / dt + st.reduce((s, x) => s + x.dose / 2, 0) + (belt ? belt.dose : 0);
+}
+// Storms the playhead just crossed: flash the Sun in the 3D view.
+function stormCheck(jd, prev) {
+  if (!run) return;
+  if (prev > 0 && jd > prev && jd - prev < 30) { const hit = run.storms.filter(s => s.jd > prev && s.jd <= jd); if (hit.length) { const s = hit.reduce((a, b) => b.F > a.F ? b : a); lastStorm = { s, at: performance.now() }; View.stormPulse(Math.min(1, 0.3 + Math.sqrt(s.F) * 1.2), Rad.stormClass(s.F)); } }
+  const n = run.storms.filter(s => s.jd <= jd).length; if (n !== seen) { seen = n; drawTimeline(); }
 }
 
 // ------------------------------------------------------------------ hazards
 // Mission-file notes were written as terse engineering shorthand; soften the shouting for display.
 const tidy = s => String(s || '').replace(/\s+—\s+/g, '; ').replace(/\bALL ESTIMATES\b/g, 'All estimates').replace(/\b(ESTIMATES?|ASSUMPTION)\b/g, w => w.toLowerCase()).replace(/\bNOT\b/g, 'not').replace(/\s*\(not modelled\)/g, ' (not modelled)');
-const LVL = { HIGH: 0, MED: 1, LOW: 2, INFO: 3 }, LVLNAME = { HIGH: 'High', MED: 'Medium', LOW: 'Low', INFO: 'Info' };
+const LVL = { HIGH: 0, MED: 1, LOW: 2, INFO: 3 };
+const lvl = (v, hi, med) => v > hi ? 'HIGH' : v > med ? 'MED' : 'LOW';
+// Radiation hazards, recomputed from the live model so they follow the shielding.
+function radHazards() {
+  if (isStar()) return starRadHazards();
+  if (!A) return [];
+  const S = shield, days = A.P.J[A.P.J.length - 1] - A.P.J[0], y = Rad.yr(A.P.J[0]), ss = Rad.ssn(y), ss2 = Rad.ssn(y + 1);
+  const phase = ss > 110 ? 'near solar maximum' : ss < 40 ? 'near solar minimum' : ss2 < ss ? 'while the Sun is quietening' : 'while the Sun is getting more active';
+  const gMax = Rad.gcrRate(Rad.phi(2031.3), 1), gMin = Rad.gcrRate(Rad.phi(2035.3), 1);
+  const out = [{ id: 'rad-cancer', cat: 'Radiation', title: `Cancer risk: ${fmtP(A.cancer)} chance from ${int(A.mean)} mSv`, value: A.mean / Rad.RISK.career * 100, unit: '% of career limit', level: lvl(A.mean, 600, 300), basis: 'quantitative',
+    note: `Expected dose ${int(A.mean)} mSv, ${int(A.p95)} mSv in a bad case (worst 5% of ${A.n} simulated missions). At about ${Rad.RISK.cancerPerSv * 100}% extra cancer chance per Sv that is ${fmtP(A.cancer)} (bad case ${fmtP(A.cancerBad)}), on top of the roughly 40% lifetime chance everyone already has. NASA caps a career at 600 mSv.${A.mean > 600 ? ` This mission is ${(A.mean / 600).toFixed(1)}× that limit.` : ''} Above 1–2 Sv the risk numbers are extrapolations, and heart and brain effects are not counted.`,
+    source: 'NASA-STD-3001 Vol. 1 Rev C (600 mSv career limit); BEIR VII Phase 2 (2006) lifetime attributable cancer incidence' },
+  { id: 'rad-gcr', cat: 'Radiation', title: `Cosmic rays: ${int(A.gcr - A.surface)} mSv over ${int(days)} days`, value: (A.gcr - A.surface) / days, unit: 'mSv/day average', level: lvl(A.gcr, 600, 300), basis: 'quantitative',
+    note: `Launch in ${y.toFixed(0)} ${phase}. Cosmic rays are strongest when the Sun is quiet (${gMax.toFixed(1)} mSv/day at the 2031 minimum against ${gMin.toFixed(1)} at the 2035 maximum). Shielding barely stops them${S.wall ? `: the extra ${S.wall} g/cm² wall cuts them by ${int((1 - A.f0) * 100)}%` : ''}. What works is less time in deep space, or flying near solar maximum.`,
+    source: 'MSL/RAD cruise (Zeitlin et al. 2013, Science); LRO/CRaTER solar-cycle trend (Case et al. 2016)' },
+  { id: 'rad-spe', cat: 'Radiation', title: `Solar storms: ${fmtP(A.pBig)} chance of a big one`, value: A.nBig, unit: 'big storms expected', prob: A.pArs, prob_label: 'chance of radiation sickness',
+    level: A.pArs > 0.01 || A.spe_p95 > 250 ? 'HIGH' : (A.pBig > 0.3 || !S.shelter) ? 'MED' : 'LOW', basis: 'quantitative',
+    note: `Storms come at random, more often near solar maximum. ${S.shelter ? `With the crew in the ${S.shelter} g/cm² shelter the bad case is ${int(A.spe_p95)} mSv; with no shelter it would be ${int(A0.spe_p95)} mSv and the chance of radiation sickness ${fmtP(A0.pArs, A0.n)}.` : `There is no shelter, so the crew takes the full dose: bad case ${int(A.spe_p95)} mSv.`} A storm the size of August 1972 would give ${int(Rad.d72(Rad.HULL * 0.9 + S.wall))} mSv inside the hull at 1 AU.`,
+    source: 'Papaioannou et al. >30 MeV event catalogue 1956–2023; Townsend et al. August 1972 dose vs shielding' },
+  { id: 'rad-30', cat: 'Radiation', title: `Worst 30 days: ${int(A.win30)} mSv of the 250 mSv limit`, value: A.win30, unit: 'mSv, bad case', level: lvl(A.win30, 250, 150), basis: 'quantitative',
+    note: 'The 30-day limit protects the blood-forming organs from short, intense exposure, mostly from a storm landing during a stretch of high cosmic-ray dose.', source: 'NASA-STD-3001 Vol. 1 Rev C' }];
+  const byBody = {}; for (const b of A.belts) (byBody[b.body] ||= []).push(b);
+  for (const [body, bs] of Object.entries(byBody)) {
+    const d = bs.reduce((s, b) => s + b.dose, 0), e = body === 'earth';
+    out.push({ id: 'rad-belt-' + body, cat: 'Radiation', title: `${e ? 'Van Allen belts' : cap(body) + ' radiation belts'}: ${bs.length} pass${bs.length > 1 ? 'es' : ''}, ${sig(d)} mSv`, value: d, unit: 'mSv', level: d > 100 ? 'HIGH' : d > 20 ? 'MED' : 'LOW', basis: 'quantitative', jd0: bs[0].jd, jd1: bs[0].jd, body,
+      note: e ? `Trapped protons and electrons 1,000–60,000 km up. A fast transit costs a few mSv${S.shelter ? ', less in the shelter' : ''}.` : `${bs.map(b => esc(b.label)).join('; ')}. Jupiter's belts are the harshest radiation in the solar system; dose falls about 30× between a pass at 9 and at 30 Jupiter radii. Order-of-magnitude estimate.`,
+      source: e ? 'Artemis I Orion dosimetry (Nature 2024)' : 'Ringwald 2000 dose rates at the Galilean moons; Juno radiation vault' });
+  }
+  if (A.surface) out.push({ id: 'rad-surf', cat: 'Radiation', title: `Mars surface: ${int(A.surface)} mSv during the stay`, value: A.surface, unit: 'mSv', level: lvl(A.surface, 300, 100), basis: 'quantitative',
+    note: 'The planet blocks half the sky and the thin air stops some particles, so the surface rate is about a third of deep space. Burying the habitat under regolith cuts it further (MARS HABITAT buttons in the radiation panel).', source: 'MSL/RAD Gale crater (Hassler et al. 2014)' });
+  return out;
+}
+function starRadHazards() {
+  const R = mission.radiation; if (!R) return [];
+  const r = starRisk(mission), T = r.T, probe = !mission.summary.crew, who = probe ? 'A crew in this hull' : 'The crew';
+  const out = [{ id: 'rad-cancer', cat: 'Radiation', title: r.lethal ? `${who} would get a lethal dose` : `Cancer risk${probe ? ' (if crewed)' : ''}: ${Rad.cancerLabel(T.total_mean)}${T.total_mean > 10000 ? '' : ' chance'} from ${T.total_mean > 10000 ? sig(T.total_mean / 1000) + ' Sv' : int(T.total_mean) + ' mSv'}`,
+    value: r.lethal ? T.acute / 1000 : T.total_mean > 1e4 ? T.total_mean / 1000 : T.total_mean / 6, unit: r.lethal ? 'Sv in two days' : T.total_mean > 1e4 ? 'Sv' : '% of career limit', level: r.lethal || T.total_mean > 600 ? 'HIGH' : T.total_mean > 300 ? 'MED' : 'LOW', basis: 'quantitative',
+    note: r.lethal ? `At cruise speed the interstellar gas delivers about ${sig(T.peak_rate / 1000 / 24)} Sv per hour through a ${sig(mission.params.frontal)} g/cm² bow shield. Around 6 Sv in a couple of days is fatal even with treatment, so the crew would not survive to see cancer. A forward shield thicker than the proton range is the fix.`
+      : `${who} would take about ${int(T.total_mean)} mSv over ${dur(T.days)} of ship time (bad case ${int(T.total_p95)}). ${T.total_mean > 10000 ? 'That is far beyond anything the cancer risk models cover; heart, eye and brain damage would set in too.' : `At about 8% extra cancer chance per Sv that is ${fmtP(r.cancer)}, on top of the roughly 40% everyone has.`} NASA caps a career at 600 mSv.${T.total_mean > 600 ? ` This is ${(T.total_mean / 600).toFixed(1)}× that limit.` : ''}`,
+    source: 'NASA-STD-3001 Vol. 1 Rev C; BEIR VII Phase 2 (2006); Semyonov 2020 https://arxiv.org/abs/2004.10079' },
+  { id: 'rad-gcr', cat: 'Radiation', title: `Cosmic rays: ${T.gcr < 1e4 ? int(T.gcr) + ' mSv' : bigDose(T.gcr)} over ${durS(T.days)} aboard`, value: T.gcr / Math.max(1, T.days), unit: 'mSv/day average', level: T.gcr > 600 ? 'HIGH' : T.gcr > 300 ? 'MED' : 'LOW', basis: 'quantitative',
+    note: `Outside the Sun's protective bubble (past ~120 AU) cosmic rays are about 36% stronger. ${mission.params.absorbs ? 'The Astrophage fuel tanks wrap the crew and absorb almost everything.' : `Thick shielding helps only slowly: this ship carries ${sig(mission.params.shield)} g/cm².`} Time aboard is the main driver, so faster ships and time dilation both cut the dose.`, source: 'MSL/RAD cruise (Zeitlin et al. 2013, Science)' }];
+  return out;
+}
+let hzList = [];
 function renderHazards() {
-  const hz = mission.risk || [], [t0] = span();
+  const hz = hzList = [...radHazards(), ...(mission.risk || [])], [t0] = span();
   const counts = Object.fromEntries(Object.keys(LVL).map(k => [k, hz.filter(h => h.level === k).length]));
   $('hzcount').innerHTML = Object.entries(counts).filter(([, n]) => n).map(([k, n]) => `<span class="lv ${k}">${n} ${k}</span>`).join('');
   if (!hz.length) { $('hzt').innerHTML = '<div class="empty">No hazard analysis for this case.</div>'; return; }
+  const open = new Set([...$('hzt').querySelectorAll('.hz.open')].map(el => el.dataset.id));
   const rows = hz.map((h, k) => [h, k]).sort((a, b) => LVL[a[0].level] - LVL[b[0].level]);
   const when = h => h.jd0 == null ? '' : isStar() ? `year ${(jdYear(h.jd0) - jdYear(t0)).toFixed(1)}` : `day ${int(Math.max(0, h.jd0 - t0))}`;
   const src = s => { if (!s) return ''; const m = s.match(/https?:\/\/[^\s)]+/); if (!m) return `<span class="src">${esc(s)}</span>`; let host = ''; try { host = new URL(m[0]).hostname.replace('www.', ''); } catch { } return `<a class="src" href="${esc(m[0])}" target="_blank" rel="noopener">[${esc(host || 'source')}]</a>`; };
   $('hzt').innerHTML = rows.map(([h, k]) => {
-    const pr = prob(h.prob);
-    return `<article class="hz ${h.level}" data-k="${k}">
+    const pr = h.cat === 'Radiation' ? (h.prob != null ? fmtP(h.prob, A && A.n) : '') : prob(h.prob), id = h.id || 'hz' + k;
+    return `<article class="hz ${h.level}${h.cat === 'Radiation' ? ' rad' : ''}${open.has(id) ? ' open' : ''}" data-k="${k}" data-id="${esc(id)}">
       <div class="row"><span class="lv ${h.level}">${h.level}</span><h3>${esc(tidy(h.title))}</h3><b class="mv">${h.value == null ? '—' : sig(h.value)} <em>${esc(h.unit || '')}</em></b><span class="when">${when(h)}</span><span class="car">▸</span></div>
       <div class="more">
-        <div class="meta"><span>${esc(h.cat)}</span><span>${h.basis === 'quantitative' ? 'QUANTITATIVE' : 'QUALITATIVE'}</span>${pr ? `<span class="p">${pr} <em>${esc(h.prob_label || 'probability')}</em></span>` : ''}</div>
-        ${h.note ? `<p>${esc(tidy(h.note))}</p>` : ''}
+        <div class="meta"><span>${esc(h.cat)}</span><span>${String(h.basis).startsWith('quantitative') ? 'QUANTITATIVE' : 'QUALITATIVE'}</span>${pr ? `<span class="p">${pr} <em>${esc(h.prob_label || 'probability')}</em></span>` : ''}</div>
+        ${h.note ? `<p>${h.cat === 'Radiation' ? h.note : esc(tidy(h.note))}</p>` : ''}
         ${h.source ? `<footer>${src(h.source)}</footer>` : ''}
       </div>
     </article>`;
   }).join('');
   $('hzt').querySelectorAll('.hz').forEach(el => {
-    el.onclick = ev => { if (ev.target.closest('a')) return; el.classList.toggle('open'); const h = hz[+el.dataset.k]; if (h.jd0 == null) return; const [a, b] = span(); setT((Math.max(a, h.jd0) - a) / (b - a)); };
+    el.onclick = ev => { if (ev.target.closest('a')) return; el.classList.toggle('open'); const h = hzList[+el.dataset.k]; if (h.jd0 == null) return; const [a, b] = span(); setT((Math.max(a, h.jd0) - a) / (b - a)); };
   });
 }
 
@@ -327,13 +547,13 @@ function renderHazards() {
 export function drawTimeline() {
   if (!mission) return; const tlc = $('tlc'), r = tlc.getBoundingClientRect(); if (!r.width) return;
   const p = Math.min(devicePixelRatio, 2); tlc.width = r.width * p; tlc.height = r.height * p; const g = tlc.getContext('2d'); g.setTransform(p, 0, 0, p, 0, 0);
-  const w = r.width, h = r.height, [t0, t1] = span(), X = jd => (jd - t0) / (t1 - t0) * w; g.clearRect(0, 0, w, h);
+  const w = r.width, h = r.height, [t0, t1] = span(), X = jd => (jd - t0) / (t1 - t0) * w, jdNow = t0 + t * (t1 - t0); g.clearRect(0, 0, w, h);
   const R = mission.radiation;
-  if (R && !isStar()) {
-    const n = R.jd.length, mx = Math.max(...R.gcr_rate);
-    for (let k = 0; k < n - 1; k++) { const x0 = X(R.jd[k]), x1 = X(R.jd[k + 1]);
-      g.fillStyle = `rgba(224,176,80,${Math.min(.9, R.spe_p30[k] * 3)})`; g.fillRect(x0, h * .72, x1 - x0 + .5, h * .28);
-      g.fillStyle = `rgba(200,200,200,${.08 + .4 * R.gcr_rate[k] / mx})`; g.fillRect(x0, 0, x1 - x0 + .5, h * .16); }
+  if (A) {   // sunspots along the mission (top) and the storms of this run so far (bottom)
+    const P = A.P; g.fillStyle = 'rgba(224,176,80,.28)'; g.beginPath(); g.moveTo(X(P.J[0]), h * .17);
+    for (let k = 0; k < P.n; k++) g.lineTo(X(P.J[k]), h * .17 - Math.min(1, Rad.ssn(P.Y[k]) / 250) * h * .15);
+    g.lineTo(X(P.J[P.n - 1]), h * .17); g.closePath(); g.fill();
+    for (const s of run.storms) if (s.jd <= jdNow) { const sz = { minor: .35, strong: .6, severe: .85, extreme: 1 }[Rad.stormClass(s.F)]; g.fillStyle = `rgba(224,176,80,${.5 + .5 * sz})`; g.fillRect(X(s.jd) - 1, h - h * .28 * sz, 2.5, h * .28 * sz); }
   }
   if (R && isStar()) {   // speed profile as a filled curve
     g.beginPath(); g.moveTo(0, h); R.jd.forEach((jd, k) => g.lineTo(X(jd), h - R.beta[k] / Math.max(1e-9, Math.max(...R.beta)) * h * .8)); g.lineTo(w, h); g.closePath();
@@ -342,11 +562,11 @@ export function drawTimeline() {
   for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1), stay = ph.name.includes('stay') || ph.name === 'cruise';
     g.strokeStyle = stay ? '#6f8f5a' : '#3a3a3a'; g.strokeRect(a + .5, h * .2 + .5, Math.max(1, b - a - 1), h * .46);
     g.fillStyle = stay ? 'rgba(156,207,122,.10)' : 'rgba(0,0,0,0)'; g.fillRect(a, h * .2, b - a, h * .46); }
-  for (const hz of mission.risk || []) if (hz.jd0 != null && !isStar()) { const x0 = X(Math.max(t0, hz.jd0)), x1 = Math.max(x0 + 2, X(Math.min(t1, hz.jd1 ?? hz.jd0)));
+  for (const hz of hzList.length ? hzList : mission.risk || []) if (hz.jd0 != null && !isStar()) { const x0 = X(Math.max(t0, hz.jd0)), x1 = Math.max(x0 + 2, X(Math.min(t1, hz.jd1 ?? hz.jd0)));
     g.fillStyle = hz.level === 'HIGH' ? 'rgba(224,96,90,.55)' : 'rgba(224,176,80,.4)'; g.fillRect(x0, h * .24, x1 - x0, h * .38); }
   g.font = '10px ' + MONO;
   for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1); if (b - a < 40) continue; g.fillStyle = ph.name.includes('stay') ? '#9ccf7a' : '#8a8a8a'; g.fillText(cap(ph.name), a + 5, h * .2 + 13); }
-  if (!isStar() && R) { g.fillStyle = '#5a5a5a'; g.textAlign = 'right'; g.fillText('cosmic-ray rate', w - 4, 9); g.fillText('solar storm odds', w - 4, h - 3); g.textAlign = 'left'; }
+  if (A) { g.fillStyle = '#7a6a48'; g.textAlign = 'right'; g.fillText('sunspots', w - 4, 9); g.fillText(`storms this run: ${run.storms.filter(s => s.jd <= jdNow).length}`, w - 4, h - 3); g.textAlign = 'left'; }
   $('ticks').innerHTML = mission.events.map(e => `<div class="tick" title="${esc((e.date || '') + ' ' + e.label)}" style="left:${(e.jd - t0) / (t1 - t0) * 100}%;background:${EVC[e.hazard ? 'hazard' : e.type]}"></div>`).join('');
   const y0 = jdYear(t0), y1 = jdYear(t1), spanY = y1 - y0;
   const step = [1 / 12, 1 / 6, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000].find(s => spanY / s <= Math.max(3, Math.min(10, Math.floor(w / 75)))) || 1e6;
@@ -362,6 +582,7 @@ export function bindTimeline() {
   new ResizeObserver(() => { drawTimeline(); }).observe(track);
   document.fonts && document.fonts.ready.then(() => { drawTimeline(); lastJd = -1; });
   new ResizeObserver(() => { lastJd = -1; }).observe($('dosechart'));
+  new ResizeObserver(() => { lastJd = -1; }).observe($('solarchart'));
   new ResizeObserver(() => { if (mission && mission.isru) drawIsru(); }).observe($('isruchart'));
 }
 
@@ -481,7 +702,7 @@ function cabinFor(m) {
   cab.crew.clear();
   for (let k = 0; k < n; k++) cab.crew.add(crewFigure(k / Math.max(1, n) * Math.PI * 2 + 0.4));
   const p = m.params || {};
-  $('cutnote').textContent = view !== 'cabin' ? '' : isStar() ? (p.absorbs ? 'Fuel tanks wrap the crew' : !m.summary.crew ? 'Uncrewed: no cabin' : `${sig(p.shield)} g/cm² shielding`) : 'hull 4 mm 304L · shelter water';
+  $('cutnote').textContent = view !== 'cabin' ? '' : isStar() ? (p.absorbs ? 'Fuel tanks wrap the crew' : !m.summary.crew ? 'Uncrewed: no cabin' : `${sig(p.shield)} g/cm² shielding`) : `hull 4 mm 304L${shield.wall ? ` + ${shield.wall} g/cm² water` : ''} · ${shield.shelter ? `shelter ${shield.shelter} g/cm²` : 'no shelter'}`;
   cab.probe = isStar() && !m.summary.crew;
 }
 function paintDose(pos, col, rateAt) {
@@ -489,10 +710,9 @@ function paintDose(pos, col, rateAt) {
   col.needsUpdate = true;
 }
 function updateCabin(jd) {
-  if (!cab) return; const q = radAt(jd);
-  if (!q) { cab.r.render(cab.S, cab.cam); return; }
-  const beltRate = q.belt ? (sheltered ? q.belt.sheltered : q.belt.hull) : 0, rate = q.gcr + Math.max(0, q.spe) + beltRate;
-  const sh = sheltered && !isStar(), cool = rate * (sh ? 0.2 : 0.72);
+  if (!cab) return; const rate = rateNow(jd);
+  if (rate == null) { cab.r.render(cab.S, cab.cam); return; }
+  const sh = !!A && shield.shelter > 0, cool = rate * (sh ? 0.2 : 0.72);
   const P = cab.hullGeo.attributes.position;
   paintDose(P, cab.hullGeo.attributes.color, k => {
     const z01 = P.getZ(k) / cab.HG + .5, ang = Math.atan2(P.getY(k), P.getX(k));

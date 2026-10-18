@@ -9,6 +9,7 @@ import { HISTORIC, historicById, buildHistoric } from './historic.js';
 import { Holo } from './holo.js';
 import { resizeAll } from './vehicle.js';
 import { $, esc, dur, mass, sig, int, f1 } from './fmt.js';
+import * as Rad from './radiation.js';
 
 // ------------------------------------------------------------------ hero backdrop
 // The selected destination fills the middle of the screen between the two builder rails.
@@ -70,7 +71,7 @@ export function renderHero(dt) {
 
 // ------------------------------------------------------------------ builder
 const PARAM_DEFS = {
-  solar: [['dry', 'Dry mass', 't', 1], ['payload', 'Payload', 't', 1], ['cap', 'Tank capacity', 't', 10], ['isp', 'Engine Isp', 's', 1], ['tanker', 'Propellant per tanker', 't', 5], ['maxTankers', 'Tanker flights allowed', '', 1]],
+  solar: [['dry', 'Dry mass', 't', 1], ['payload', 'Payload', 't', 1], ['cap', 'Tank capacity', 't', 10], ['isp', 'Engine Isp', 's', 1], ['tanker', 'Propellant per tanker', 't', 5], ['maxTankers', 'Tanker flights allowed', '', 1], ['wall', 'Extra cabin shielding (water)', 'g/cm²', 5], ['shelter', 'Storm shelter (water)', 'g/cm²', 5]],
   rocket: [['dry', 'Dry mass', 't', 1], ['prop', 'Propellant', 't', 1], ['ve', 'Exhaust speed', '% of c', 0.1, 100], ['accel', 'Acceleration', 'g', 0.01], ['crew', 'Crew', '', 1], ['shield', 'Crew shielding', 'g/cm²', 1]],
   beam: [['beta', 'Target speed', '% of c', 1, 100], ['accel', 'Acceleration', 'g', 100]],
   ramjet: [['accel', 'Acceleration', 'g', 0.1], ['crew', 'Crew', '', 1], ['shield', 'Crew shielding', 'g/cm²', 1]],
@@ -174,7 +175,7 @@ async function estimate() {
       <div><span>Top speed</span><b>${S.beta >= 0.001 ? (S.beta * 100).toFixed(S.beta > 0.99 ? 2 : 1) + '% c' : f1(S.beta * 299792.458, 1) + ' km/s'}</b></div><div><span>Arrives</span><b>${S.decel ? 'and stops' : 'flyby'}</b></div>
       ${p.kind === 'rocket' ? `<div><span>Mass ratio</span><b>${sig(S.mr)}</b></div><div><span>Fuel needed</span><b class="${short ? 'no' : ''}">${mass(S.prop_used_t)}</b></div>` : ''}
     </div>${short ? `<div class="bad">Needs ${sig(S.prop_used_t / p.prop)}× the propellant loaded. The trip shown follows the book anyway; untick “Fly the book’s profile” to see what the fuel really buys.</div>` : ''}
-    ${S.crew && S.ship_days > 365 * 60 ? '<div class="bad">Longer than a human lifetime aboard.</div>' : ''}`;
+    ${S.crew && S.ship_days > 365 * 60 ? '<div class="bad">Longer than a human lifetime aboard.</div>' : ''}${starRadEstimate(m)}`;
     return;
   }
   el.innerHTML = '<div class="dim">Loading trajectories…</div>'; $('launch').disabled = true; preview = null;
@@ -186,5 +187,31 @@ async function estimate() {
   const shown = best || data.missions[0]; B.mission = data.missions.indexOf(shown); preview = { kind: 'planet', data, mission: shown, dest: B.dest };
   el.innerHTML = `<div class="est-grid"><div><span>Options that work</span><b class="${ok.length ? 'ok' : 'no'}">${ok.length} of ${data.missions.length}</b></div>
     ${best ? `<div><span>Fewest tankers</span><b>${best.summary.tankers_needed}</b></div><div><span>That route</span><b>${esc(best.name)}</b></div><div><span>Launch / duration</span><b>${best.summary.launch}, ${int(best.summary.total_days ?? best.summary.tof_years * 365.25)} d</b></div>` : ''}
-    </div>${ok.length ? '' : `<div class="bad">Nothing closes with this vehicle: ${esc((data.missions[0].summary.why || [])[0] || '')}. You can still open the dashboard to see why.</div>`}`;
+    </div>${ok.length ? '' : `<div class="bad">Nothing closes with this vehicle: ${esc((data.missions[0].summary.why || [])[0] || '')}. You can still open the dashboard to see why.</div>`}${radEstimate(data, shown, ok, p)}`;
 }
+// Interstellar crew radiation before launch (probes: what a crew would get in that hull).
+function starRadEstimate(m) {
+  const T = m.radiation.totals, lethal = T.acute >= 6000, cls = lethal || T.total_mean > 600 ? 'no' : T.total_mean > 300 ? 'wn' : 'ok', pc = x => x < 0.001 ? '<0.1%' : (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
+  const who = m.summary.crew ? 'Crew' : 'If crewed';
+  return `<div class="est-grid est-rad">
+    <div><span>${who} · dose</span><b class="${cls}">${lethal ? 'lethal' : T.total_mean > 10000 ? sig(T.total_mean / 1000) + ' Sv' : int(T.total_mean) + ' mSv'}</b><em>${lethal ? `${sig(T.peak_rate / 24000)} Sv/hour at cruise` : `${int(T.total_mean / 6)}% of career limit`}</em></div>
+    <div><span>Cancer chance</span><b class="${cls}">${lethal ? '—' : Rad.cancerLabel(T.total_mean)}</b><em>${lethal ? 'would not survive' : T.total_mean > 10000 ? 'beyond any data' : `bad case ${Rad.cancerLabel(T.total_p95)}`}</em></div>
+    <div><span>Interstellar gas</span><b class="${T.gas > 1 ? 'no' : 'ok'}">${T.gas > 1 ? sig(T.gas / 1000) + ' Sv' : 'stopped'}</b><em>${m.params.absorbs ? 'Astrophage absorbs it' : `${sig(m.params.frontal)} g/cm² bow shield`}</em></div>
+    </div>`;
+}
+// Crew radiation risk before launch: the route shown above and the lowest-dose route that still closes.
+function radEstimate(data, shown, ok, p) {
+  if (!Rad.ready() || !shown.radiation || !shown.radiation.r_au) return '';
+  const s = { wall: p.wall ?? 0, shelter: p.shelter ?? 20 }, A = Rad.analyse(shown, s, { n: 300, series: false });
+  const pc = x => x < 0.001 ? '<0.1%' : (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%', cls = d => d > 600 ? 'no' : d > 300 ? 'wn' : 'ok';
+  const pool = (ok.length ? ok : data.missions).filter(m => m.radiation && m.radiation.r_au).map(m => [m, Rad.analyse(m, s, { n: 120, series: false, seed: 5 })]);
+  const [lm, la] = pool.sort((a, b) => a[1].mean - b[1].mean)[0] || [];
+  const dm = Rad.shieldMass(s);
+  return `<div class="est-grid est-rad">
+    <div><span>Crew dose · ${esc(shown.name)}</span><b class="${cls(A.mean)}">${int(A.mean)} mSv</b><em>${int(A.mean / 6)}% of career limit</em></div>
+    <div><span>Cancer chance</span><b class="${cls(A.mean)}">${pc(A.cancer)}</b><em>bad case ${pc(A.cancerBad)}</em></div>
+    <div><span>Radiation sickness</span><b class="${A.pArs > 0.01 ? 'no' : A.pArs > 0.001 ? 'wn' : 'ok'}">${A.pArs > 0.001 ? pc(A.pArs) : '<0.1%'}</b><em>${s.shelter ? `${s.shelter} g/cm² shelter` : 'no shelter'}</em></div>
+    ${lm && lm !== shown ? `<div class="wide"><span>Lowest-dose route${ok.length ? ' that works' : ''}</span><b>${esc(lm.name)} ${lm.summary.launch} · ${int(la.mean)} mSv · ${pc(la.cancer)} cancer chance</b></div>` : ''}
+    </div>${dm ? `<div class="dim est-note">Shielding ${dm > 0 ? 'adds' : 'saves'} ${int(Math.abs(dm))} t.</div>` : ''}`;
+}
+

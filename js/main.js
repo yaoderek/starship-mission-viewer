@@ -8,6 +8,7 @@ import { buildInterstellar } from './interstellar.js';
 import { buildHistoric, historicById } from './historic.js';
 import { resizeAll } from './vehicle.js';
 import { $, esc } from './fmt.js';
+import { loadRadModel } from './radiation.js';
 
 let current = null, sceneReady = null, view = 'start';
 
@@ -50,7 +51,9 @@ async function ensureScene() {
   if (!sceneReady) sceneReady = (async () => {
     $('app').hidden = false;
     await View.initScene({ canvas: $('c'), host: $('scene'), labelLayer: $('labels'), tipEl: $('tip'), onPick: e => Dash.jumpTo(e) });
-    initLayout(); Dash.bindTimeline(); Dash.bindRadControls(); Dash.bindVehicleView();
+    initLayout(); Dash.bindTimeline();
+    // shielding changed on the dashboard: keep it in the link and in what EDIT hands back to the builder
+    Dash.setShieldHandler(s => { if (!current) return; Object.assign(current.params, s); history.replaceState(null, '', location.pathname + location.search + cfgToHash(current)); }); Dash.bindRadControls(); Dash.bindVehicleView();
     document.querySelectorAll('#scale button').forEach(b => b.onclick = () => { const v = b.dataset.s === 'true'; View.setScale(v); document.querySelectorAll('#scale button').forEach(x => x.classList.toggle('on', x === b)); });
     $('rel').onchange = e => View.setRelativistic(e.target.checked);
     $('home').onclick = () => { location.hash = ''; };   // back to the builder
@@ -77,7 +80,8 @@ async function fly(cfg) {
   } else {
     const p = planetById(cfg.dest), v = SOLAR_VEHICLES.find(x => x.id === cfg.vehicle);
     data = await loadPlanetFile(cfg.dest);
-    resizeAll(data, { ...v.p, ...cfg.params }); data.vehicleId = v.id;
+    const vp = { ...v.p, ...cfg.params }; resizeAll(data, vp); data.vehicleId = v.id;
+    Dash.setShield({ wall: vp.wall, shelter: vp.shelter });
     title = isPreset ? cfg.title : `${v.name} to ${p.name}`;
     sub = `Earth → ${p.name} · ${data.missions.length} trajectories · ${v.name}`;
   }
@@ -118,7 +122,7 @@ function legacyAfter() {
 
 async function boot() {
   bindStart();
-  await initHero();
+  await Promise.all([initHero(), loadRadModel()]);
   legacy();
   addEventListener('hashchange', route);
   await route();
