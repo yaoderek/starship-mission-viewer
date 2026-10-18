@@ -1,56 +1,144 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Starship Mission Analysis — Flight Dynamics & Crew Radiation</title>
+<title>Starship Mission Viewer</title>
 <link rel="stylesheet" href="./style.css">
 <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head><body>
-<div id="app">
+
+<!-- ============================================================ start screen -->
+<div id="start">
+  <canvas id="hero"></canvas>
+  <div class="start-inner">
+    <header class="brand">Starship Mission Viewer</header>
+
+    <section id="choose">
+      <h1>Pick a mission</h1>
+      <p class="lede">Each one is a working model: trajectories, propellant and crew radiation are computed, so you can change the inputs and see what breaks.</p>
+      <div class="cards">
+        <button class="card" data-preset="hailmary" data-hero="star">
+          <h2>Project Hail Mary</h2>
+          <p>The novel’s ship: three crew in comas, 2,000 tonnes of Astrophage, 1.5 g all the way to Tau Ceti. The flight times hold up. The fuel doesn’t.</p>
+          <dl><div><dt>Distance</dt><dd>11.9 ly</dd></div><div><dt>Ship time</dt><dd>3.9 yr</dd></div><div><dt>Top speed</dt><dd>99.5% c</dd></div></dl>
+        </button>
+        <button class="card" data-preset="mars" data-hero="mars">
+          <h2>Starship to Mars</h2>
+          <p>Refuel in Earth orbit, coast for six months, aerobrake into Mars. Thirteen launch windows and mission types to compare, from one-way to a surface stay.</p>
+          <dl><div><dt>Transit</dt><dd>174 d</dd></div><div><dt>Tankers</dt><dd>4</dd></div><div><dt>Crew dose</dt><dd>213 mSv</dd></div></dl>
+        </button>
+        <button class="card build" data-go="builder" data-hero="earth">
+          <h2>Build your own</h2>
+          <p>Any planet or a nearby star, with Starship, nuclear thermal, fusion probes, a laser sail or antimatter. Every mass and speed is editable.</p>
+          <dl><div><dt>Destinations</dt><dd>18</dd></div><div><dt>Vehicles</dt><dd>13</dd></div></dl>
+        </button>
+      </div>
+    </section>
+
+    <section id="builder" hidden>
+      <div class="bhead"><button class="ghost" id="bback">← Back</button><h1>Build a mission</h1></div>
+      <div class="bgrid">
+        <div class="bcol">
+          <h3>Destination</h3>
+          <div class="grp">Planets</div><div id="dPlanets" class="chips"></div>
+          <div class="grp">Nearby stars</div><div id="dStars" class="chips"></div>
+          <p id="destBlurb" class="blurb"></p>
+        </div>
+        <div class="bcol">
+          <h3>Vehicle</h3>
+          <div id="vehList" class="vlist"></div>
+        </div>
+        <div class="bcol">
+          <h3>Settings</h3>
+          <div id="params" class="params"></div>
+          <div id="estimate" class="estimate"></div>
+          <button id="launch" class="primary">Launch mission</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ============================================================ dashboard -->
+<div id="app" hidden>
   <header id="bar">
-    <div class="id"><b>STARSHIP MISSION ANALYSIS</b><span>FDO / RAD CONSOLE · PATCHED-CONIC · JPL DE440s</span></div>
-    <nav id="targets"></nav>
-    <div id="scale" class="seg"><button data-s="true" class="on">TRUE SCALE</button><button data-s="false">ENLARGED (NOT TO SCALE)</button></div>
-    <div class="clock"><span class="k">EPOCH UTC</span><span id="date">—</span><span class="k">MET</span><span id="met">—</span></div>
+    <button id="home" class="ghost">← Missions</button>
+    <div class="title"><b id="mtitle">—</b><span id="msub"></span></div>
+    <button id="edit" class="ghost">Edit mission</button>
+    <div class="spacer"></div>
+    <div id="scale" class="seg solar-only"><button data-s="true" class="on">True scale</button><button data-s="false">Enlarged planets</button></div>
+    <label class="tog star-only" title="Bend and recolour the background stars as the crew would see them at this speed"><input type="checkbox" id="rel" checked> Crew’s-eye sky</label>
+    <button id="resetlayout" class="ghost small" title="Reset panel sizes">Reset layout</button>
+    <div class="clock">
+      <div><span class="k">Earth</span><span id="date">—</span></div>
+      <div><span class="k">Elapsed</span><span id="met" class="acc">—</span></div>
+      <div class="star-only"><span class="k">Ship clock</span><span id="shipclock" class="acc2">—</span></div>
+      <div class="star-only"><span class="k">Speed</span><span id="speedv">—</span></div>
+    </div>
   </header>
-  <section id="left" class="col">
-    <div class="ph"><span>MISSION COMPARISON</span><span class="hint">click header to sort · row to select</span></div>
-    <div id="modes" class="seg modes"></div>
-    <div class="tbl-wrap" id="cmpwrap"><table id="cmp"></table></div>
-    <div class="ph"><span>SELECTED · EVENT SEQUENCE</span><span id="selname" class="hint"></span></div>
-    <div class="tbl-wrap" id="evwrap"><table id="evt"></table></div>
-    <div class="ph"><span id="budtitle">Δv BUDGET / VEHICLE</span></div>
-    <div id="budget" class="kv"></div>
-    <div id="isruwrap"><div class="ph"><span>ISRU · REQUIRED POWER vs PRODUCTION TIME</span><span class="hint">Sabatier + electrolysis, 13.6 kWh/kg (11.2–20.2)</span></div><canvas id="isruchart"></canvas></div>
-    <details class="explain"><summary>TANKERS — what the number means</summary>
-      <p>N tankers = N additional Starship launches that transfer propellant to the crewed ship in LEO (not larger tanks). Total launches = 1 + N. Ship-to-ship cryogenic transfer has <b>not yet been demonstrated</b>; per-tanker load (100–150 t) and boil-off are public estimates.</p></details>
-  </section>
-  <section id="scene" class="col">
-    <canvas id="c"></canvas><div id="labels"></div><div id="tip"></div>
-    <div id="scalenote" class="overlay-note"></div>
-    <div class="legend"><span><i class="ln fl"></i>FLOWN</span><span><i class="ln pl"></i>PLANNED</span><span><i class="sq la"></i>LAUNCH/ARR</span><span><i class="sq fb"></i>FLYBY</span><span><i class="sq ds"></i>DSM</span><span><i class="sq hz"></i>HAZARD</span></div>
-  </section>
-  <section id="right" class="col">
-    <div class="ph"><span>CREW RADIATION · EFFECTIVE DOSE (mSv)</span><label class="tog"><input type="checkbox" id="shelter" checked> STORM SHELTER <span id="shval"></span></label></div>
-    <div id="regseg" class="seg reg"><span class="k">MARS HABITAT</span><button data-r="0">STARSHIP HULL</button><button data-r="0.5">0.5 m REGOLITH</button><button data-r="1">1.0 m REGOLITH</button></div>
-    <canvas id="dosechart"></canvas>
-    <div id="radnow" class="kv"></div>
-    <table id="radtbl" class="mini"></table>
-    <div class="ph"><span>CREW COMPARTMENT · CUTAWAY</span><span class="hint" id="cutnote">hull 4 mm 304L · shelter water</span></div>
-    <div id="cutwrap"><canvas id="cut"></canvas><div id="cutleg"></div></div>
-  </section>
-  <section id="hz" class="col">
-    <div class="ph"><span>HAZARDS · RISK SUMMARY</span><span class="hint">probabilities only where defensible · click row for time</span></div>
-    <div class="tbl-wrap"><table id="hzt"></table></div>
-  </section>
+
+  <main id="grid">
+    <div class="stack" id="colL">
+      <section class="panel" id="pCmp" data-grow="5">
+        <div class="ph"><h2 id="cmpTitle">Trajectory options</h2><button class="max" title="Expand">⤢</button></div>
+        <div id="modes" class="seg modes"></div>
+        <div class="pb tbl-wrap"><table id="cmp" class="grid"></table></div>
+      </section>
+      <section class="panel" id="pEvt" data-grow="3">
+        <div class="ph"><h2>Event sequence</h2><span class="hint" id="selname"></span><button class="max" title="Expand">⤢</button></div>
+        <div class="pb tbl-wrap"><table id="evt" class="grid"></table></div>
+      </section>
+      <section class="panel" id="pBud" data-grow="4">
+        <div class="ph"><h2 id="budtitle">Δv and propellant</h2><button class="max" title="Expand">⤢</button></div>
+        <div class="pb scroll">
+          <div id="budget" class="kv"></div>
+          <div id="isruwrap"><div class="sub-h">Surface propellant plant: power vs production time</div><canvas id="isruchart"></canvas></div>
+          <details id="tankx" class="explain"><summary>What does “tankers” mean?</summary>
+            <p>Each tanker is another Starship launch that docks with the crewed ship in low Earth orbit and tops up its tanks. Total launches = 1 + tankers. Ship-to-ship propellant transfer has not been demonstrated yet, and boil-off is not modelled.</p></details>
+        </div>
+      </section>
+    </div>
+    <div class="gutter colg" data-side="L"></div>
+    <div class="stack" id="colM">
+      <section class="panel scene" id="pScene" data-grow="7">
+        <div id="scene" title="Drag to orbit, scroll to zoom, double-click to reset"><canvas id="c"></canvas><div id="labels"></div><div id="tip"></div></div>
+        <div class="legend"><span><i class="ln fl"></i>Flown</span><span><i class="ln pl"></i>Planned</span><span><i class="sq la"></i>Depart / arrive</span><span class="solar-only"><i class="sq fb"></i>Flyby</span><span><i class="sq ds"></i>Burn</span><span><i class="sq hzd"></i>Hazard</span></div>
+        <button class="max" title="Expand">⤢</button>
+      </section>
+      <section class="panel" id="pHz" data-grow="3">
+        <div class="ph"><h2>Hazards</h2><span id="hzcount" class="hzcount"></span><button class="max" title="Expand">⤢</button></div>
+        <div class="pb scroll"><div id="hzt" class="hzgrid"></div></div>
+      </section>
+    </div>
+    <div class="gutter colg" data-side="R"></div>
+    <div class="stack" id="colR">
+      <section class="panel" id="pRad" data-grow="6">
+        <div class="ph"><h2>Crew radiation</h2><label class="tog" id="shelterwrap"><input type="checkbox" id="shelter" checked> Storm shelter <span id="shval" class="dim"></span></label><button class="max" title="Expand">⤢</button></div>
+        <div class="pb scroll">
+          <div id="regseg" class="seg reg"><span class="k">Mars habitat</span><button data-r="0">Ship hull</button><button data-r="0.5">0.5 m regolith</button><button data-r="1">1 m regolith</button></div>
+          <div class="chartwrap"><canvas id="dosechart"></canvas></div>
+          <div id="radnow" class="kv now"></div>
+          <div id="limits" class="limits"></div>
+          <table id="radbreak" class="mini"></table>
+          <p id="radnote" class="note"></p>
+        </div>
+      </section>
+      <section class="panel" id="pCab" data-grow="4">
+        <div class="ph"><h2>Crew cabin</h2><span class="hint" id="cutnote"></span><button class="max" title="Expand">⤢</button></div>
+        <div id="cutwrap"><canvas id="cut"></canvas><div id="cutleg"></div></div>
+      </section>
+    </div>
+  </main>
+
   <footer id="timeline">
-    <button id="play" aria-label="play">PLAY</button>
+    <button id="play" aria-label="Play or pause"></button>
     <div class="tl-main">
       <div id="track"><canvas id="tlc"></canvas><div id="ticks"></div><div id="knob"></div></div>
       <div class="tl-axis" id="tlaxis"></div>
     </div>
-    <select id="speed"><option value="10">10 d/s</option><option value="45" selected>45 d/s</option><option value="120">120 d/s</option><option value="365">365 d/s</option></select>
+    <select id="speed" title="Playback speed"><option value="10">Slow</option><option value="45" selected>Normal</option><option value="120">Fast</option><option value="365">Very fast</option></select>
   </footer>
 </div>
-<div id="loading">LOADING EPHEMERIS…</div>
-<script type="module" src="./app.js"></script>
+
+<div id="loading"><span>Loading</span></div>
+<script type="module" src="./js/main.js"></script>
 </body></html>

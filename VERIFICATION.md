@@ -261,3 +261,23 @@ Pareto plots: `output/<planet>/pareto_dv_dose.png`; cumulative-dose plots: `outp
 | Round-trip GCR+surface dose, MSL-era conditions (180/500/180 d) | ~1.01 Sv (Hassler et al. 2014: 2x0.33 + 0.32 Sv) | 0.87 Sv (GCR part, cruise at 1.25 AU from 2011-11) | PASS | cruise rate follows the solar-cycle model through 2012-14 rather than the fixed 1.84 mSv/d |
 | Regolith shielding (1 m) | -71% effective dose (Geant4, NST 2022); -41% primary-only (PSS 2022); 1 m meets all PELs (HZETRN, TTU 2015) | factor 0.29 | INFO | INFO: published values disagree by ~2x; we use the Geant4 effective-dose ratio |
 | Multi-burn propellant chaining == single burn (no payload drop) | 277.403 t | 277.403 t | PASS |  |
+
+## v0.5 Interstellar missions and vehicle swaps (computed in the browser)
+
+**Vehicle swaps (planetary).** `js/vehicle.js` keeps each trajectory's Δv legs and re-runs the propellant chain for the chosen vehicle (dry mass, payload, tank size, Isp, tanker load). With the baseline Starship inputs it reproduces the mission files: Mars E-M one-way 386.6 t / 4 tankers, conjunction 813.6 t / 8, ISRU E-M-E 484.3 t from LEO + 605.2 t made on Mars, Jupiter round trip 298.7 t needed at Jupiter. NASA DRA 5.0 NTR inputs: 356.4 t IMLEO, 191.7 t LH2, 62.8 t payload, ~94 t inert, Isp ~906 s (NASA SP-2009-566).
+
+**Interstellar flight model.** `js/interstellar.js` flies a constant proper acceleration *a* to a cruise rapidity *w*, coasts, and (optionally) brakes symmetrically. Earth time `t = (c/a) sinh w`, ship time `τ = (c/a) w`, distance `(c²/a)(cosh w − 1)` per burn. Rapidity budget from the relativistic rocket equation `Δw = (vₑ/c) ln(m₀/m₁)`.
+
+| Check | Reference | Ours | Result |
+|---|---|---|---|
+| Hail Mary, 1.5 g to Tau Ceti (11.91 ly), photon exhaust | Book: ~3 yr 9 mo ship time, ~13 yr Earth time | 3.89 yr ship, 13.14 yr Earth, peak 99.52% c | PASS |
+| Hail Mary mass ratio for that profile | e^6.03 ≈ 416 (Physics Forums thread 1084422) | 415.9 → 41,487 t of fuel for a 100 t ship | PASS |
+| Hail Mary with the book's 2,000 t fuel (ratio 21) | ~0.91 c (same thread) | 90.9% c, 6.6 yr ship / 13.9 yr Earth | PASS |
+| Daedalus, Barnard's Star 5.96 ly | 0.12 c, ~50 yr (Bond & Martin 1978) | 12.0% c, 52 yr (single-stage equivalent: 54,000 t, vₑ 0.033 c) | PASS |
+| Icarus Firefly, Alpha Cen | 0.047 c, ~100 yr (Freeland & Lamontagne 2015) | 4.7% c, 102 yr (braking uses the acceleration phase length, 10 yr not 5) | PASS |
+| Longshot as published (396 t, 264 t prop, Isp 10⁶ s) | Claimed 0.045 c, 100 yr | Masses only give 1.8% c with braking, 245 yr | INFO: published masses do not close |
+| Starshot, Alpha Cen 4.34 ly | 0.2 c, ~20 yr | 20% c, 21.7 yr | PASS |
+
+Book figures (100 t ship, 2,000 t Astrophage, 1.5 g, 3 crew in coma, Tau Ceti) come from fan summaries of the novel; Andy Weir has said he tuned the fuel figure for the story (Physics Today). Star positions and distances: SIMBAD J2000; Alpha Centauri at 4.34 ly (system parallax 750.81 mas).
+
+**Interstellar radiation (rough).** Deep-space GCR 1.84 mSv/day (MSL/RAD cruise, Zeitlin 2013) up to 20 g/cm², two-exponential falloff beyond, ×1.36 outside the heliosphere (~2.5 mSv/day; estimate built from Semyonov's ~0.7 Sv/yr unshielded and Voyager modulation data, no published crew calculation found). Ship-time integrated. Hazard cards also compute the oncoming interstellar hydrogen energy (n_H = 0.2 cm⁻³, Crawford 2011), the water depth needed to stop it (Bragg-Kleeman fit, extrapolated above ~300 MeV), and dust energy per m² (dust density 6.2×10⁻²⁴ kg/m³). These are order-of-magnitude figures.
