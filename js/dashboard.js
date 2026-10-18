@@ -366,32 +366,49 @@ export function bindTimeline() {
 }
 
 // ------------------------------------------------------------------ crew cabin cutaway
+// Dose colour is the console status ramp (green → amber → red), unlit so the legend matches the hull.
+const DOSE_STOPS = [[0, '#245c40'], [1, '#5fbf7f'], [5, '#e0b050'], [20, '#e0605a'], [80, '#f2f2f2']].map(([r, hex]) => ({ r, hex, col: new THREE.Color(hex) }));
+const doseF = v => Math.log10(1 + Math.max(0, v));
+const doseU = v => Math.max(0, Math.min(1, doseF(v) / doseF(DOSE_STOPS[DOSE_STOPS.length - 1].r)));
+const doseTmp = new THREE.Color();
+function doseInto(rate, out) {
+  const x = Math.max(0, rate); let k = 0; while (k < DOSE_STOPS.length - 2 && x > DOSE_STOPS[k + 1].r) k++;
+  const a = DOSE_STOPS[k], b = DOSE_STOPS[k + 1], t = (doseF(x) - doseF(a.r)) / (doseF(b.r) - doseF(a.r) || 1);
+  return out.copy(a.col).lerp(b.col, Math.max(0, Math.min(1, t)));
+}
+function doseScaleHTML(rate) {
+  const grad = DOSE_STOPS.map(s => `${s.hex} ${(doseU(s.r) * 100).toFixed(1)}%`).join(',');
+  const ticks = DOSE_STOPS.map(s => `<em style="left:${(doseU(s.r) * 100).toFixed(1)}%">${s.r >= 80 ? '80+' : s.r}</em>`).join('');
+  const num = rate >= 10 ? rate.toFixed(1) : rate.toFixed(2);
+  return `<span class="scale" title="Dose rate, mSv per day"><i style="background:linear-gradient(90deg,${grad})"><span class="mark" style="left:${(doseU(rate) * 100).toFixed(1)}%"></span></i><span class="ticks">${ticks}</span></span><b>${num} mSv/d</b>`;
+}
 let cab = null;
 function initCabin() {
   const host = $('cutwrap'), cv = $('cut');
   const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true, alpha: true });
   r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setClearColor(0x000000, 0);
   const S = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 400); cam.up.set(0, 0, 1);
-  S.add(new THREE.AmbientLight(0xffffff, .55)); const dl = new THREE.DirectionalLight(0xffffff, 1.1); dl.position.set(6, -9, 12); S.add(dl);
+  S.add(new THREE.AmbientLight(0xffffff, .95)); const key = new THREE.DirectionalLight(0xffffff, .7); key.position.set(5, -8, 12); S.add(key);
+  const fill = new THREE.DirectionalLight(0xffffff, .4); fill.position.set(-8, 6, 4); S.add(fill);
   const RH = 4.5, HG = 7.0, ARC = Math.PI * 1.25, A0 = Math.PI * 0.375;
-  const heatCols = ['#1a1a1a', '#5a5a5a', '#d0a040', '#e0605a'].map(c => new THREE.Color(c));
-  const heat = x => { x = Math.max(0, Math.min(1, x || 0)); const s = x * 3, k = Math.min(2, Math.floor(s)); return heatCols[k].clone().lerp(heatCols[k + 1], s - k); };
   const hullGeo = new THREE.CylinderGeometry(RH, RH, HG, 64, 10, true, A0, ARC); hullGeo.rotateX(Math.PI / 2);
   hullGeo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(hullGeo.attributes.position.count * 3), 3));
-  const hull = new THREE.Mesh(hullGeo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: .82 })); S.add(hull);
-  S.add(new THREE.LineSegments(new THREE.EdgesGeometry(hullGeo, 30), new THREE.LineBasicMaterial({ color: 0x8a8a8a })));
-  const deck = new THREE.Mesh(new THREE.CircleGeometry(RH, 64, A0, ARC), new THREE.MeshLambertMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide })); deck.position.z = -HG / 2; S.add(deck);
-  const deck2 = deck.clone(); deck2.position.z = 0.6; deck2.material = deck.material.clone(); deck2.material.transparent = true; deck2.material.opacity = .35; S.add(deck2);
+  const hull = new THREE.Mesh(hullGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })); S.add(hull);
+  S.add(new THREE.LineSegments(new THREE.EdgesGeometry(hullGeo, 30), new THREE.LineBasicMaterial({ color: 0xd0d0d0 })));
+  const deckGeo = new THREE.CircleGeometry(RH, 64, A0, ARC);
+  deckGeo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(deckGeo.attributes.position.count * 3), 3));
+  const deck = new THREE.Mesh(deckGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })); deck.position.z = -HG / 2; S.add(deck);
+  const deck2 = deck.clone(); deck2.position.z = 0.6; deck2.material = deck.material.clone(); deck2.material.transparent = true; deck2.material.opacity = .42; S.add(deck2);
   const shG = new THREE.CylinderGeometry(1.6, 1.6, 2.4, 40, 1, true, A0, ARC); shG.rotateX(Math.PI / 2);
-  const shMat = new THREE.MeshLambertMaterial({ color: 0x5a5a5a, transparent: true, opacity: .55, side: THREE.DoubleSide }), shelter = new THREE.Mesh(shG, shMat); shelter.position.z = -HG / 2 + 1.2; S.add(shelter);
-  const shEdge = new THREE.LineSegments(new THREE.EdgesGeometry(shG, 30), new THREE.LineBasicMaterial({ color: 0xd0d0d0 })); shEdge.position.copy(shelter.position); S.add(shEdge);
+  const shMat = new THREE.MeshBasicMaterial({ color: 0x245c40, transparent: true, opacity: .72, side: THREE.DoubleSide }), shelter = new THREE.Mesh(shG, shMat); shelter.position.z = -HG / 2 + 1.2; S.add(shelter);
+  const shEdge = new THREE.LineSegments(new THREE.EdgesGeometry(shG, 30), new THREE.LineBasicMaterial({ color: 0xf2f2f2 })); shEdge.position.copy(shelter.position); S.add(shEdge);
   const crew = new THREE.Group(); S.add(crew);
   const crewGeo = {
     leg: new THREE.CapsuleGeometry(0.06, 0.42, 2, 6), torso: new THREE.BoxGeometry(0.36, 0.48, 0.2),
     head: new THREE.SphereGeometry(0.15, 12, 8), visor: new THREE.BoxGeometry(0.16, 0.06, 0.04), arm: new THREE.CapsuleGeometry(0.045, 0.36, 2, 6),
   };
   const suitMat = new THREE.MeshLambertMaterial({ color: 0xd8dee4 }), visorMat = new THREE.MeshLambertMaterial({ color: 0x141414 });
-  cab = { r, S, cam, host, hull, hullGeo, heat, shelter, shEdge, shMat, crew, crewGeo, suitMat, visorMat, RH, HG, w: 1, h: 1 };
+  cab = { r, S, cam, host, hull, hullGeo, deckGeo, shelter, shEdge, shMat, crew, crewGeo, suitMat, visorMat, RH, HG, w: 1, h: 1 };
   const fit = () => {
     const b = host.getBoundingClientRect(); cab.w = Math.max(1, b.width); cab.h = Math.max(1, b.height);
     r.setSize(cab.w, cab.h, false); cam.aspect = cab.w / cab.h;
@@ -465,17 +482,29 @@ function cabinFor(m) {
   for (let k = 0; k < n; k++) cab.crew.add(crewFigure(k / Math.max(1, n) * Math.PI * 2 + 0.4));
   const p = m.params || {};
   $('cutnote').textContent = view !== 'cabin' ? '' : isStar() ? (p.absorbs ? 'Fuel tanks wrap the crew' : !m.summary.crew ? 'Uncrewed: no cabin' : `${sig(p.shield)} g/cm² shielding`) : 'hull 4 mm 304L · shelter water';
-  cab.astro = !!p.absorbs; cab.probe = isStar() && !m.summary.crew;
+  cab.probe = isStar() && !m.summary.crew;
+}
+function paintDose(pos, col, rateAt) {
+  for (let k = 0; k < pos.count; k++) { const c = doseInto(rateAt(k), doseTmp); col.setXYZ(k, c.r, c.g, c.b); }
+  col.needsUpdate = true;
 }
 function updateCabin(jd) {
   if (!cab) return; const q = radAt(jd);
   if (!q) { cab.r.render(cab.S, cab.cam); return; }
   const beltRate = q.belt ? (sheltered ? q.belt.sheltered : q.belt.hull) : 0, rate = q.gcr + Math.max(0, q.spe) + beltRate;
-  const rn = Math.min(1, Math.log10(1 + rate) / Math.log10(51));
-  const col = cab.hullGeo.attributes.color, P = cab.hullGeo.attributes.position;
-  for (let k = 0; k < P.count; k++) { const z = P.getZ(k) / cab.HG + .5; const c = cab.astro ? new THREE.Color('#7a5a2a').lerp(new THREE.Color('#d09040'), .5 + .3 * Math.sin(z * 8 + jd * .2)) : cab.heat(rn * (0.75 + 0.25 * Math.sin(z * 6 + jd * .3))); col.setXYZ(k, c.r, c.g, c.b); }
-  col.needsUpdate = true;
-  const sh = sheltered && !isStar(); cab.shelter.visible = cab.shEdge.visible = sh; cab.shMat.color.copy(cab.heat(rn * .35));
-  $('cutleg').innerHTML = `<b>${rate.toFixed(2)} mSv/d</b>`;
+  const sh = sheltered && !isStar(), cool = rate * (sh ? 0.2 : 0.72);
+  const P = cab.hullGeo.attributes.position;
+  paintDose(P, cab.hullGeo.attributes.color, k => {
+    const z01 = P.getZ(k) / cab.HG + .5, ang = Math.atan2(P.getY(k), P.getX(k));
+    const w = Math.min(1, Math.max(0, .06 + .94 * z01 + .1 * Math.sin(ang * 3)));
+    return cool + (rate - cool) * w;
+  });
+  const D = cab.deckGeo.attributes.position;
+  paintDose(D, cab.deckGeo.attributes.color, k => {
+    const rad = Math.hypot(D.getX(k), D.getY(k));
+    return rad < 1.55 && sh ? cool : cool + (rate - cool) * Math.min(1, rad / cab.RH);
+  });
+  cab.shelter.visible = cab.shEdge.visible = sh; if (sh) doseInto(cool, cab.shMat.color);
+  $('cutleg').innerHTML = doseScaleHTML(rate);
   cab.r.render(cab.S, cab.cam);
 }
