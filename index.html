@@ -14,11 +14,13 @@
   </header>
   <section id="left" class="col">
     <div class="ph"><span>MISSION COMPARISON</span><span class="hint">click header to sort · row to select</span></div>
+    <div id="modes" class="seg modes"></div>
     <div class="tbl-wrap" id="cmpwrap"><table id="cmp"></table></div>
     <div class="ph"><span>SELECTED · EVENT SEQUENCE</span><span id="selname" class="hint"></span></div>
     <div class="tbl-wrap" id="evwrap"><table id="evt"></table></div>
-    <div class="ph"><span>Δv BUDGET / VEHICLE</span></div>
+    <div class="ph"><span id="budtitle">Δv BUDGET / VEHICLE</span></div>
     <div id="budget" class="kv"></div>
+    <div id="isruwrap"><div class="ph"><span>ISRU · REQUIRED POWER vs PRODUCTION TIME</span><span class="hint">Sabatier + electrolysis, 13.6 kWh/kg (11.2–20.2)</span></div><canvas id="isruchart"></canvas></div>
     <details class="explain"><summary>TANKERS — what the number means</summary>
       <p>N tankers = N additional Starship launches that transfer propellant to the crewed ship in LEO (not larger tanks). Total launches = 1 + N. Ship-to-ship cryogenic transfer has <b>not yet been demonstrated</b>; per-tanker load (100–150 t) and boil-off are public estimates.</p></details>
   </section>
@@ -29,6 +31,7 @@
   </section>
   <section id="right" class="col">
     <div class="ph"><span>CREW RADIATION · EFFECTIVE DOSE (mSv)</span><label class="tog"><input type="checkbox" id="shelter" checked> STORM SHELTER <span id="shval"></span></label></div>
+    <div id="regseg" class="seg reg"><span class="k">MARS HABITAT</span><button data-r="0">STARSHIP HULL</button><button data-r="0.5">0.5 m REGOLITH</button><button data-r="1">1.0 m REGOLITH</button></div>
     <canvas id="dosechart"></canvas>
     <div id="radnow" class="kv"></div>
     <table id="radtbl" class="mini"></table>

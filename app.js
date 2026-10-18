@@ -8,8 +8,10 @@ const $ = id => document.getElementById(id);
 const ORDER = ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
 const RADIUS = { mercury: 2439, venus: 6052, earth: 6371, mars: 3390, jupiter: 69911, saturn: 58232, uranus: 25362, neptune: 24622 };
 const PCOL = { mercury: '#9a958e', venus: '#cdb88a', earth: '#5b8fd0', mars: '#c0674a', jupiter: '#c9ae8a', saturn: '#cdbb8f', uranus: '#86c2c8', neptune: '#5b78c8' };
-const EVC = { launch: '#e8f4ff', arrival: '#e8f4ff', flyby: '#7fc8ff', dsm: '#e0b050', hazard: '#e0605a' };
-const C = { gcr: '#7fc8ff', spe: '#e0b050', belt: '#e0605a', tot: '#e8f4ff', p95: '#8a96a2', lim: '#e0605a' };
+const EVC = { launch: '#e8f4ff', arrival: '#e8f4ff', flyby: '#7fc8ff', dsm: '#e0b050', hazard: '#e0605a', surface: '#9ccf7a', departure: '#e8f4ff', return: '#e8f4ff' };
+const MODES = { 'one-way': 'ONE-WAY', conjunction: 'CONJUNCTION', opposition: 'OPPOSITION', isru: 'ISRU STAY', 'round-trip': 'ROUND TRIP' };
+let modeFilter = 'all', regSel = null;
+const C = { surf: '#9ccf7a', gcr: '#7fc8ff', spe: '#e0b050', belt: '#e0605a', tot: '#e8f4ff', p95: '#8a96a2', lim: '#e0605a' };
 const fmt = jd => new Date((jd - 2440587.5) * 864e5).toISOString().slice(0, 10);
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : '';
 const f1 = (x, d = 1) => x == null || !isFinite(x) ? '—' : (+x).toFixed(d);
@@ -122,11 +124,11 @@ function selectMission(i) {
   for (const e of mission.events) {
     const typ = e.hazard ? 'hazard' : e.type; const s = sprite(SQ, EVC[typ], 9);
     s.position.set(...e.pos); s.userData = { kind: 'event', e }; missionGroup.add(s); hoverables.push(s);
-    const short = e.type === 'flyby' ? `${cap(e.body)} GA` : e.type === 'dsm' ? e.label.split(' ')[0] : e.type === 'launch' ? 'TLI' : `${cap(e.body)} ARR`;
+    const short = e.type === 'flyby' ? `${cap(e.body)} GA` : e.type === 'dsm' ? e.label.split(' ')[0] : e.type === 'launch' ? 'TLI' : e.type === 'departure' ? `${cap(e.body)} DEP` : e.type === 'return' ? 'EARTH ENTRY' : e.type === 'surface' ? 'SURFACE' : `${cap(e.body)} ARR`;
     const dv = e.dv > 0.0005 ? `<span class="dv">${e.dv >= 1 ? e.dv.toFixed(2) + ' km/s' : (e.dv * 1000).toFixed(0) + ' m/s'}</span>` : '';
     makeLabel(`${short.toUpperCase()}${dv}`, e.hazard ? 'hz' : e.type, e.hazard ? 90 : e.type === 'arrival' ? 85 : e.type === 'launch' ? 80 : e.type === 'flyby' ? 70 : 30 + Math.min(20, e.dv * 20), () => s.position);
   }
-  renderEvents(); renderBudget(); renderRadTable(); renderHazards(); drawTimeline();
+  renderEvents(); renderBudget(); renderReg(); renderRadTable(); renderHazards(); drawTimeline();
   document.querySelectorAll('#cmp tbody tr').forEach(el => el.classList.toggle('on', +el.dataset.i === i));
   const r = Math.max(...pts.map(p => Math.hypot(p[1], p[2], p[3])));
   focus = null; flyTo(new THREE.Vector3(0, 0, 0), r * 2.6 * Math.max(1, 1.2 / camera.aspect), new THREE.Vector3(0.1, -1, 0.85)); setT(0);
@@ -136,16 +138,21 @@ function selectMission(i) {
 let sortKey = 'rank', sortDir = 1;
 const COLS = [
   ['rank', '#', '', m => m.rank, m => m.rank, 'l'], ['name', 'ROUTE', '', m => m.name, m => `${m.name}${(m.tags || []).map(x => `<span class="tag">${x.includes('alternative') ? 'LOW-DOSE ALT' : 'LOW-DOSE'}</span>`).join('')}`, 'l'],
-  ['model', 'MODEL', '', m => m.model, m => `<span class="dim">${m.model}</span>`, 'l'], ['launch', 'LAUNCH', 'UTC', m => m.summary.launch, m => m.summary.launch],
-  ['tof', 'TOF', 'yr', m => m.summary.tof_years, m => f1(m.summary.tof_years, 2)], ['dv', 'Δv', 'km/s', m => m.summary.dv_total, m => f1(m.summary.dv_total, 2)],
+  ['mode', 'MODE', '', m => m.mode || 'one-way', m => `<span class="dim">${MODES[m.mode || 'one-way']}${m.mode && m.mode !== 'one-way' ? '' : ' · ' + m.model}</span>`, 'l'], ['launch', 'LAUNCH', 'UTC', m => m.summary.launch, m => m.summary.launch],
+  ['dur', 'DUR', 'd', m => totDays(m), m => totDays(m).toFixed(0)], ['stay', 'STAY', 'd', m => m.summary.stay_days || 0, m => m.summary.stay_days ? m.summary.stay_days.toFixed(0) : '—'], ['dv', 'Δv', 'km/s', m => m.summary.dv_total, m => f1(m.summary.dv_total, 2)],
   ['tk', 'TANK', 'n', m => m.summary.tankers_needed ?? 99, m => m.summary.tankers_needed ?? '—'], ['ln', 'LNCH', 'n', m => m.summary.tankers_needed ?? 99, m => m.summary.tankers_needed == null ? '—' : m.summary.tankers_needed + 1],
   ['dose', 'DOSE', 'mSv μ', m => dose(m).mean ?? 1e9, m => doseCell(dose(m).mean)], ['p95', 'P95', 'mSv', m => dose(m).p95 ?? 1e9, m => doseCell(dose(m).p95)],
   ['risk', 'RISK', 'HIGH n', m => (m.risk || []).filter(h => h.level === 'HIGH').length, m => { const n = (m.risk || []).filter(h => h.level === 'HIGH').length; return `<span class="${n ? 'no' : 'ok'}">${m.risk ? n : '—'}</span>`; }],
   ['feas', 'FEAS', '', m => m.summary.feasible ? 0 : 1, m => m.summary.feasible ? '<span class="ok">YES</span>' : '<span class="no">NO</span>']];
-function dose(m) { const T = m.radiation && m.radiation.totals; if (!T) return {}; return sheltered ? { mean: T.total_mean_sh, p95: T.total_p95_sh } : { mean: T.total_mean, p95: T.total_p95 }; }
+function totDays(m) { return m.summary.total_days ?? m.summary.tof_years * 365.25; }
+const regF = (R, x) => { const k = Object.keys(R.regolith).find(q => Math.abs(parseFloat(q) - x) < 1e-6); return k ? R.regolith[k] : 1; };
+function regK(m) { const R = m.radiation; if (!R || !R.regolith || regSel == null) return 1; return regF(R, regSel) / regF(R, R.regolith_used ?? 0); }
+function dose(m) { const T = m.radiation && m.radiation.totals; if (!T) return {}; const ds = (T.surface || 0) * (1 - regK(m));
+  return sheltered ? { mean: T.total_mean_sh - ds, p95: T.total_p95_sh - ds } : { mean: T.total_mean - ds, p95: T.total_p95 - ds }; }
+function adj(arr) { const R = mission.radiation, k = regK(mission); if (k === 1 || !R.surf_cum) return arr; return arr.map((v, i) => v - R.surf_cum[i] * (1 - k)); }
 function doseCell(v) { if (v == null) return '<span class="dim">—</span>'; const c = v > 600 ? 'no' : v > 300 ? 'wn' : ''; return `<span class="${c}">${v.toFixed(0)}</span>`; }
 function renderCmp() {
-  const ms = data.missions.map((m, i) => [m, i]); const col = COLS.find(c => c[0] === sortKey);
+  const ms = data.missions.map((m, i) => [m, i]).filter(([m]) => modeFilter === 'all' || (m.mode || 'one-way') === modeFilter); const col = COLS.find(c => c[0] === sortKey);
   ms.sort((a, b) => { const x = col[3](a[0]), y = col[3](b[0]); return (x > y ? 1 : x < y ? -1 : 0) * sortDir; });
   $('cmp').innerHTML = `<thead><tr>${COLS.map(c => `<th data-k="${c[0]}" class="${c[5] || ''} ${c[0] === sortKey ? 'sorted' : ''}">${c[1]}${c[0] === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}<span class="u">${c[2] || '&nbsp;'}</span></th>`).join('')}</tr></thead><tbody>` +
     ms.map(([m, i]) => `<tr data-i="${i}" class="${i === mIndex ? 'on' : ''}">${COLS.map(c => `<td class="${c[5] || ''}">${c[4](m)}</td>`).join('')}</tr>`).join('') + '</tbody>';
@@ -159,22 +166,56 @@ function renderEvents() {
   document.querySelectorAll('#evt tbody tr').forEach(el => el.onclick = () => { const e = mission.events[+el.dataset.k]; const [a, b] = span(); setT((e.jd - a) / (b - a)); flyTo(new THREE.Vector3(...e.pos), 0.8); });
 }
 function renderBudget() {
-  const S = mission.summary, v = data.vehicle || '';
-  $('budget').innerHTML = [['DEPARTURE', f1(S.dv_dep, 3), 'km/s'], ['DSM / MID-COURSE', f1(S.dv_dsm, 3), 'km/s'], ['CAPTURE (' + S.capture + ')', f1(S.dv_capture, 3), 'km/s'],
-    ['TOTAL Δv', f1(S.dv_total, 3), 'km/s'], ['C3', f1(S.c3, 2), 'km²/s²'], ['TANKERS / LAUNCHES', `${S.tankers_needed ?? '—'} / ${S.tankers_needed == null ? '—' : S.tankers_needed + 1}`, 'n']]
-    .map(([k, x, u]) => `<div><span>${k} [${u}]</span><b>${x}</b></div>`).join('') + `<div style="grid-column:1/-1"><span>VEHICLE (ESTIMATES)</span><br>${v}</div>`;
+  const S = mission.summary, v = data.vehicle || '', kv = rows => rows.map(([k, x, u, c]) => `<div${c ? ` class="${c}"` : ''}><span>${k}${u ? ' [' + u + ']' : ''}</span><b>${x}</b></div>`).join('');
+  const rt = mission.mode && mission.mode !== 'one-way'; $('budtitle').textContent = rt ? `ARCHITECTURE · ${MODES[mission.mode]} · Δv / PROPELLANT` : 'Δv BUDGET / VEHICLE';
+  $('isruwrap').style.display = mission.isru ? '' : 'none';
+  if (!rt) { $('budget').innerHTML = kv([['DEPARTURE', f1(S.dv_dep, 3), 'km/s'], ['DSM / MID-COURSE', f1(S.dv_dsm, 3), 'km/s'], ['CAPTURE (' + S.capture + ')', f1(S.dv_capture, 3), 'km/s'],
+    ['TOTAL Δv', f1(S.dv_total, 3), 'km/s'], ['C3', f1(S.c3, 2), 'km²/s²'], ['TANKERS / LAUNCHES', `${S.tankers_needed ?? '—'} / ${S.tankers_needed == null ? '—' : S.tankers_needed + 1}`, 'n']]) + `<div style="grid-column:1/-1"><span>VEHICLE (ESTIMATES)</span><br>${v}</div>`; return; }
+  const no = x => `<span class="no">${x}</span>`, ok = x => `<span class="ok">${x}</span>`;
+  let rows = [['OUTBOUND / STAY / RETURN', `${S.out_days.toFixed(0)} / ${S.stay_days.toFixed(0)} / ${S.ret_days.toFixed(0)}`, 'd'], ['TOTAL DURATION', `${S.total_days.toFixed(0)} (${(S.total_days / 365.25).toFixed(2)} yr)`, 'd'],
+    ['TLI (LEO)', f1(S.dv_dep, 3), 'km/s'], [S.surface ? 'MARS EDL LANDING' : 'CAPTURE (' + S.capture + ')', f1(S.dv_capture, 3), 'km/s'],
+    [S.surface ? 'ASCENT + TEI' : 'DEPARTURE (TEI)', f1(S.dv_ret_dep, 3), 'km/s'], ['VENUS FLYBY Δv', S.via ? f1(S.dv_flyby, 3) : '—', 'km/s'],
+    ['EARTH ENTRY SPEED', S.v_entry_earth.toFixed(2) + (S.v_entry_earth > 12.5 ? ' ' + no('>12.5') : ''), 'km/s'], ['EARTH BRAKING', f1(S.dv_brake, 3), 'km/s'],
+    ['TOTAL Δv', f1(S.dv_total, 3), 'km/s'], ['PROPELLANT LOADED IN LEO', S.prop_leo_t > 1600 ? no(S.prop_leo_t.toFixed(0)) : S.prop_leo_t.toFixed(0), 't'],
+    ['TANKERS / LAUNCHES', `${S.tankers_needed ?? '—'} / ${S.tankers_needed == null ? '—' : S.tankers_needed + 1}`, 'n'],
+    ['PROPELLANT AT DESTINATION', S.prop_dest_t > 0 ? (S.prop_dest_t > 1600 ? no(S.prop_dest_t.toFixed(0) + ' > TANK') : S.prop_dest_t.toFixed(0)) : '0', 't'],
+    ['DEST. PROPELLANT SOURCE', S.dest_source.startsWith('REQ') ? no('NONE MODELLED') : S.dest_source, ''], ['FEASIBLE (THIS MODEL)', S.feasible ? ok('YES') : no('NO'), '']];
+  const I = mission.isru;
+  if (I) { const P = I.plan;
+    rows = rows.concat([['ISRU PROPELLANT NEEDED', P.prop_t.toFixed(0), 't'], ['PRODUCTION WINDOW (stay − 30 d)', P.prod_days.toFixed(0), 'd'], ['PRODUCTION RATE', P.rate_kgd.toFixed(0), 'kg/d'],
+      ['PLANT POWER (range)', `${P.power_kw.toFixed(0)} (${P.power_kw_lo.toFixed(0)}–${P.power_kw_hi.toFixed(0)})`, 'kWe'], ['ENERGY', (P.energy_mwh / 1000).toFixed(2), 'GWh'],
+      ['ISRU PLANT MASS', `${P.plant_t.toFixed(0)}–${P.plant_t_hi.toFixed(0)}`, 't'], ['FISSION POWER MASS', `${P.nuclear_t[0].toFixed(0)}–${P.nuclear_t[1].toFixed(0)}`, 't'],
+      ['SOLAR POWER MASS', `${P.solar_t[0].toFixed(0)}–${P.solar_t[1].toFixed(0)}`, 't'], ['CARGO SHIPS (fission / solar)', `${I.cargo_ships_nuclear} / ${I.cargo_ships_solar}`, 'n'],
+      ['PRE-DEPLOYED PLANT (+780 d)', `${I.predeploy.power_kw.toFixed(0)} kWe`, ''],
+      [`AT ${I.power_kw_config.toFixed(0)} kWe: PROPELLANT READY`, `${I.days_at_config.toFixed(0)} d ${I.feasible_at_config ? ok('RETURN OK') : no('MISSES WINDOW')}`, ''],
+      ['CROSS-CHECK: SPACEX (MUSK 2017)', `${I.check_spacex.toFixed(0)} t/ship`, '']]); }
+  $('budget').innerHTML = kv(rows) + `<div style="grid-column:1/-1" class="dim">Return payload ${data.architecture ? data.architecture.return_payload_t : 20} t (ASSUMPTION). Ascent 4.15 km/s (MSR MAV, NTRS 20130013542); landing 0.67–0.81 km/s (NTRS 20210026187). Single Starship, Isp 375 s, 1600 t tanks. ${v}</div>`;
+  if (I) drawIsru();
+}
+function drawIsru() {
+  const cv = $('isruchart'), r = cv.getBoundingClientRect(), p = Math.min(devicePixelRatio, 2); cv.width = r.width * p; cv.height = r.height * p; const g = cv.getContext('2d'); g.setTransform(p, 0, 0, p, 0, 0);
+  const w = r.width, h = r.height, L = 44, B = 18, T = 8, I = mission.isru, cu = I.curve, xmax = 2000, lx = v => L + Math.log10(v / 30) / Math.log10(xmax / 30) * (w - L - 8);
+  const ymin = 100, ymax = 1e5, ly = v => T + (h - T - B) * (1 - Math.log10(Math.max(ymin, v) / ymin) / Math.log10(ymax / ymin));
+  g.font = '9px ui-monospace,monospace'; g.strokeStyle = '#1a222a'; g.fillStyle = '#55616d';
+  for (const v of [100, 1e3, 1e4, 1e5]) { g.beginPath(); g.moveTo(L, ly(v) + .5); g.lineTo(w - 8, ly(v) + .5); g.stroke(); g.fillText(v >= 1e3 ? (v / 1e3) + ' MW' : v + ' kW', 2, ly(v) + 3); }
+  for (const v of [30, 60, 120, 240, 480, 1000, 2000]) { g.beginPath(); g.moveTo(lx(v) + .5, T); g.lineTo(lx(v) + .5, h - B); g.stroke(); g.fillText(v, lx(v) - 6, h - 5); }
+  g.strokeStyle = '#e8f4ff'; g.beginPath(); cu.forEach((q, k) => k ? g.lineTo(lx(q.days), ly(q.kw)) : g.moveTo(lx(q.days), ly(q.kw))); g.stroke();
+  g.strokeStyle = '#9ccf7a'; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(L, ly(I.power_kw_config)); g.lineTo(w - 8, ly(I.power_kw_config)); g.stroke(); g.setLineDash([]);
+  g.fillStyle = '#9ccf7a'; g.fillText(`CONFIGURED PLANT ${I.power_kw_config.toFixed(0)} kWe`, L + 4, ly(I.power_kw_config) - 3);
+  const x = lx(I.plan.prod_days), y = ly(I.plan.power_kw); g.fillStyle = I.feasible_at_config ? '#9ccf7a' : '#e0605a'; g.fillRect(x - 3, y - 3, 6, 6);
+  g.fillText(`THIS STAY: ${I.plan.power_kw.toFixed(0)} kWe`, Math.min(x + 6, w - 120), y - 5); g.fillStyle = '#55616d'; g.fillText('production days', w - 90, h - 5);
 }
 function renderRadTable() {
   const R = mission.radiation;
   if (!R) { $('radtbl').innerHTML = '<tr><td>No radiation analysis for this case (validation trajectory).</td></tr>'; $('radnow').innerHTML = ''; return; }
   const T = R.totals, sh = sheltered;
   const rows = [['GCR (cycle-phase band p05–p95)', T.gcr, `${fsig(T.gcr_p05)}–${fsig(T.gcr_p95)}`], ['SPE expected / p95', sh ? T.spe_mean_sh : T.spe_mean, fsig(sh ? T.spe_p95_sh : T.spe_p95)],
-    ['Trapped belts (Earth, Jupiter)', sh ? T.belts_sh : T.belts, ''], ['TOTAL expected / p95', sh ? T.total_mean_sh : T.total_mean, fsig(sh ? T.total_p95_sh : T.total_p95)],
+    ['Trapped belts (Earth, Jupiter)', sh ? T.belts_sh : T.belts, ''], ...(T.surface ? [['Mars surface stay (habitat)', T.surface * regK(mission), `0.64±0.12 mSv/d × ${(regK(mission) * regF(mission.radiation, mission.radiation.regolith_used ?? 0)).toFixed(2)}`]] : []), ['TOTAL expected / p95', dose(mission).mean, fsig(dose(mission).p95)],
     ['Worst 30-d window p95 (BFO lim 250)', sh ? T.win30_p95_sh : T.win30_p95, (sh ? T.win30_p95_sh : T.win30_p95) > 250 ? '<span class="no">EXCEEDS</span>' : '<span class="ok">within</span>'],
     ['Worst 365-d window p95 (BFO lim 500)', sh ? T.win365_p95_sh : T.win365_p95, (sh ? T.win365_p95_sh : T.win365_p95) > 500 ? '<span class="no">EXCEEDS</span>' : '<span class="ok">within</span>'],
-    ['Fraction of career limit (600 mSv)', (sh ? T.total_mean_sh : T.total_mean) / 6, '%']];
+    ['Fraction of career limit (600 mSv)', dose(mission).mean / 6, '%']];
   $('radtbl').innerHTML = '<tr><td></td><td class="dim">mSv</td><td class="dim">range / note</td></tr>' + rows.map(r => `<tr><td>${r[0]}</td><td>${fsig(r[1])}</td><td>${r[2]}</td></tr>`).join('') +
-    `<tr><td colspan="3" class="dim" style="text-align:left;white-space:normal">One-way transit only. Hull ${T.hull_gcm2} g/cm² steel; shelter ${T.shelter_gcm2} g/cm² water (SPE + belt passes). NASA-STD-3001 limits. ESTIMATES — see VERIFICATION.md.</td></tr>`;
+    `<tr><td colspan="3" class="dim" style="text-align:left;white-space:normal">${mission.mode && mission.mode !== 'one-way' ? 'FULL MISSION (outbound + stay + return). Surface: MSL/RAD Hassler 2014; regolith factors Geant4 (NST 2022). Orbit stay: planet shadow credited.' : 'One-way transit only.'} Hull ${T.hull_gcm2} g/cm² steel; shelter ${T.shelter_gcm2} g/cm² water (SPE + belt passes). NASA-STD-3001 limits. ESTIMATES — see VERIFICATION.md.</td></tr>`;
   $('shval').textContent = `${T.shelter_gcm2} g/cm²`;
 }
 function renderHazards() {
@@ -195,8 +236,10 @@ function drawChart(jd) {
   const g = dctx; g.clearRect(0, 0, DW, DH); g.font = '9px ui-monospace,DejaVu Sans Mono,monospace';
   const R = mission && mission.radiation; if (!R) { g.fillStyle = '#55616d'; g.fillText('NO RADIATION DATA', 10, 20); return; }
   const L = 40, Rr = 8, T = 10, B = 20, w = DW - L - Rr, h = DH - T - B, tt = R.jd.map(x => x - R.jd[0]), tmax = tt[tt.length - 1];
-  const tot = sheltered ? R.tot_mean_sh : R.tot_mean, p95 = sheltered ? R.tot_p95_sh : R.tot_p95, spe = sheltered ? R.spe_mean_sh : R.spe_mean, belt = sheltered ? R.belt_cum_sh : R.belt_cum;
+  const tot = adj(sheltered ? R.tot_mean_sh : R.tot_mean), p95 = adj(sheltered ? R.tot_p95_sh : R.tot_p95), spe = sheltered ? R.spe_mean_sh : R.spe_mean, belt = sheltered ? R.belt_cum_sh : R.belt_cum;
   const ymax = Math.max(50, ...p95) * 1.12, X = v => L + v / tmax * w, Y = v => T + h - v / ymax * h;
+  for (const ph of mission.phases || []) if (ph.name.includes('stay')) { const a = X(ph.jd0 - R.jd[0]), b = X(ph.jd1 - R.jd[0]); g.fillStyle = 'rgba(156,207,122,.07)'; g.fillRect(a, T, b - a, h);
+    g.strokeStyle = '#2c3a2a'; g.strokeRect(a + .5, T + .5, b - a, h); g.fillStyle = '#6f8f5a'; g.fillText(ph.name.toUpperCase(), a + 4, T + h - 4); }
   g.strokeStyle = '#1a222a'; g.lineWidth = 1; g.fillStyle = '#55616d';
   const step = [100, 200, 500, 1000, 2000, 5000].find(s => ymax / s <= 7) || 10000;
   for (let v = 0; v <= ymax; v += step) { g.beginPath(); g.moveTo(L, Y(v) + .5); g.lineTo(L + w, Y(v) + .5); g.stroke(); g.fillText(v.toFixed(0), 4, Y(v) + 3); }
@@ -207,22 +250,24 @@ function drawChart(jd) {
   g.fillStyle = C.lim; if (600 <= ymax) { g.strokeStyle = C.lim; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(L, Y(600)); g.lineTo(L + w, Y(600)); g.stroke(); g.setLineDash([]); g.fillText('NASA CAREER LIMIT 600 mSv', L + 4, Y(600) - 3); }
   else g.fillText(`CAREER LIMIT 600 mSv ↑ off-scale (${(Math.max(...p95) / 6).toFixed(0)}% at p95)`, L + 4, T + 18);
   if (250 <= ymax) { g.strokeStyle = '#7a4a2a'; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(L, Y(250)); g.lineTo(L + w, Y(250)); g.stroke(); g.setLineDash([]); g.fillStyle = '#a06a40'; g.fillText('250 (30-d BFO limit, as reference level)', L + 4, Y(250) - 3); }
-  line(R.gcr_cum, C.gcr); line(spe, C.spe); line(belt, C.belt); line(p95, C.p95, [2, 2]); line(tot, C.tot, null, 1.4);
+  const gc = R.surf_cum ? R.gcr_cum.map((v, i) => v - R.surf_cum[i]) : R.gcr_cum; if (R.surf_cum && R.totals.surface) line(adj(R.surf_cum), C.surf);
+  line(gc, C.gcr); line(spe, C.spe); line(belt, C.belt); line(p95, C.p95, [2, 2]); line(tot, C.tot, null, 1.4);
   const now = jd - R.jd[0]; g.strokeStyle = '#ffffff'; g.beginPath(); g.moveTo(X(Math.min(now, tmax)) + .5, T); g.lineTo(X(Math.min(now, tmax)) + .5, T + h); g.stroke();
-  let lx = L + 6; [['TOTAL μ', C.tot], ['P95', C.p95], ['GCR', C.gcr], ['SPE μ', C.spe], ['BELTS', C.belt]].forEach(([k, c]) => { g.fillStyle = c; g.fillRect(lx, T + 4, 8, 2); g.fillStyle = '#8a96a2'; g.fillText(k, lx + 11, T + 7); lx += g.measureText(k).width + 22; });
+  let lx = L + 6; [['TOTAL μ', C.tot], ['P95', C.p95], ['GCR SPACE', C.gcr], ['SPE μ', C.spe], ['BELTS', C.belt], ...(R.totals.surface ? [['SURFACE', C.surf]] : [])].forEach(([k, c]) => { g.fillStyle = c; g.fillRect(lx, T + 4, 8, 2); g.fillStyle = '#8a96a2'; g.fillText(k, lx + 11, T + 7); lx += g.measureText(k).width + 22; });
 }
 function radAt(jd) {
   const R = mission && mission.radiation; if (!R) return null; const J = R.jd, n = J.length;
   let k = 0; while (k < n - 2 && J[k + 1] < jd) k++;
   const f = Math.max(0, Math.min(1, (jd - J[k]) / (J[k + 1] - J[k] || 1))), I = a => a[k] + f * (a[k + 1] - a[k]);
-  const tot = sheltered ? R.tot_mean_sh : R.tot_mean, spe = sheltered ? R.spe_mean_sh : R.spe_mean;
+  const tot = adj(sheltered ? R.tot_mean_sh : R.tot_mean), spe = sheltered ? R.spe_mean_sh : R.spe_mean;
   const dt = (J[k + 1] - J[k]) || 1, speRate = (spe[k + 1] - spe[k]) / dt;
   const belt = R.belts.find(b => Math.abs(b.jd - jd) < 1.5);
-  return { cum: I(tot), p95: I(sheltered ? R.tot_p95_sh : R.tot_p95), gcr: I(R.gcr_rate), spe: speRate, r: I(R.r_au), p30: I(R.spe_p30), belt, gcrCum: I(R.gcr_cum), speCum: I(spe), beltCum: I(sheltered ? R.belt_cum_sh : R.belt_cum) };
+  const onSurf = (mission.phases || []).some(p => p.name === 'surface stay' && jd >= p.jd0 && jd <= p.jd1);
+  return { onSurf, cum: I(tot), p95: I(adj(sheltered ? R.tot_p95_sh : R.tot_p95)), gcr: I(R.gcr_rate) * (onSurf ? regK(mission) : 1), spe: speRate, r: I(R.r_au), p30: I(R.spe_p30), belt, gcrCum: I(R.gcr_cum), speCum: I(spe), beltCum: I(sheltered ? R.belt_cum_sh : R.belt_cum) };
 }
 function updateRadNow(jd) {
   const q = radAt(jd); if (!q) return;
-  $('radnow').innerHTML = [['CUMULATIVE μ', q.cum.toFixed(1), 'mSv'], ['CUMULATIVE P95', q.p95.toFixed(1), 'mSv'], ['GCR RATE', q.gcr.toFixed(2), 'mSv/d'],
+  $('radnow').innerHTML = [['CUMULATIVE μ', q.cum.toFixed(1), 'mSv'], ['CUMULATIVE P95', q.p95.toFixed(1), 'mSv'], [q.onSurf ? 'SURFACE RATE (HAB)' : 'GCR RATE', q.gcr.toFixed(2), 'mSv/d'],
     ['SPE EXPECTED RATE', q.spe.toFixed(3), 'mSv/d'], ['P(LARGE SPE, 30 d)', (q.p30 * 100).toFixed(1), '%'], ['HELIO DIST', q.r.toFixed(2), 'AU']]
     .map(([k, v, u]) => `<div><span>${k} [${u}]</span><b>${v}</b></div>`).join('') + (q.belt ? `<div style="grid-column:1/-1" class="no">BELT PASS: ${q.belt.label} · ${fsig(sheltered ? q.belt.sheltered : q.belt.hull)} mSv</div>` : '');
 }
@@ -234,7 +279,7 @@ const cS = new THREE.Scene(), cCam = new THREE.PerspectiveCamera(32, 1, 0.1, 200
 cS.add(new THREE.AmbientLight(0xffffff, .7)); const dl = new THREE.DirectionalLight(0xffffff, .8); dl.position.set(5, -8, 10); cS.add(dl);
 const R_HULL = 4.5, HGT = 7.0, HALF = Math.PI * 1.25;
 const heatCols = [new THREE.Color('#14324a'), new THREE.Color('#2f6f8f'), new THREE.Color('#d0a040'), new THREE.Color('#e0605a')];
-function heat(x) { x = Math.max(0, Math.min(1, x)); const s = x * 3, k = Math.min(2, Math.floor(s)); return heatCols[k].clone().lerp(heatCols[k + 1], s - k); }
+function heat(x) { x = Math.max(0, Math.min(1, x || 0)); const s = x * 3, k = Math.min(2, Math.floor(s)); return heatCols[k].clone().lerp(heatCols[k + 1], s - k); }
 const hullGeo = new THREE.CylinderGeometry(R_HULL, R_HULL, HGT, 48, 8, true, Math.PI * 0.375, HALF); hullGeo.rotateX(Math.PI / 2);
 const hullMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: .85 });
 hullGeo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(hullGeo.attributes.position.count * 3), 3));
@@ -287,9 +332,12 @@ function drawTimeline() {
       g.fillStyle = `rgba(224,176,80,${Math.min(.9, pv * 3)})`; g.fillRect(x0, h * .55, x1 - x0 + .5, h * .45);
       g.fillStyle = `rgba(127,200,255,${.15 + .5 * R.gcr_rate[k] / mx})`; g.fillRect(x0, 0, x1 - x0 + .5, h * .2); }
   }
+  for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1); g.strokeStyle = ph.name.includes('stay') ? '#6f8f5a' : '#3a4652'; g.strokeRect(a + .5, h * .2 + .5, Math.max(1, b - a - 1), h * .34);
+    g.fillStyle = ph.name.includes('stay') ? 'rgba(156,207,122,.10)' : 'rgba(0,0,0,0)'; g.fillRect(a, h * .2, b - a, h * .34); }
   for (const hz of mission.risk || []) if (hz.jd0 != null) { const x0 = X(Math.max(t0, hz.jd0)), x1 = Math.max(x0 + 2, X(Math.min(t1, hz.jd1 ?? hz.jd0)));
     g.fillStyle = hz.level === 'HIGH' ? 'rgba(224,96,90,.55)' : 'rgba(224,176,80,.4)'; g.fillRect(x0, h * .22, x1 - x0, h * .3); }
   g.fillStyle = '#55616d'; g.font = '8.5px ui-monospace,monospace'; g.fillText('GCR RATE', 3, 7); g.fillText('P(LARGE SPE / 30 d)', 3, h - 3);
+  for (const ph of mission.phases || []) { g.fillStyle = ph.name.includes('stay') ? '#9ccf7a' : '#8a96a2'; g.fillText(ph.name.toUpperCase(), X(ph.jd0) + 4, h * .2 + 10); }
   $('ticks').innerHTML = mission.events.map(e => `<div class="tick" title="${e.date} ${e.label.replace(/"/g, '')}" style="left:${(e.jd - t0) / (t1 - t0) * 100}%;background:${EVC[e.hazard ? 'hazard' : e.type]}"></div>`).join('');
   const yrs = []; for (let y = Math.ceil(2000 + (t0 - 2451545) / 365.25); y <= 2000 + (t1 - 2451545) / 365.25; y++) yrs.push(y);
   const every = Math.max(1, Math.ceil(yrs.length / 12));
@@ -336,6 +384,12 @@ function togglePlay(force) { playing = force ?? !playing; if (t >= 1 && playing)
 $('play').onclick = () => togglePlay(); addEventListener('keydown', e => { if (e.code === 'Space' && e.target.tagName !== 'INPUT') { e.preventDefault(); togglePlay(); } });
 const track = $('track'); function scrub(ev) { const r = track.getBoundingClientRect(); setT((ev.clientX - r.left) / r.width); }
 track.addEventListener('pointerdown', ev => { scrub(ev); track.setPointerCapture(ev.pointerId); track.onpointermove = scrub; }); track.addEventListener('pointerup', () => { track.onpointermove = null; });
+function renderModes() { const have = [...new Set(data.missions.map(m => m.mode || 'one-way'))]; if (modeFilter !== 'all' && !have.includes(modeFilter)) modeFilter = 'all';
+  $('modes').innerHTML = ['all', ...Object.keys(MODES).filter(k => have.includes(k))].map(k => `<button data-m="${k}" class="${k === modeFilter ? 'on' : ''}">${k === 'all' ? 'ALL' : MODES[k]} <span class="dim">${k === 'all' ? data.missions.length : data.missions.filter(m => (m.mode || 'one-way') === k).length}</span></button>`).join('');
+  document.querySelectorAll('#modes button').forEach(b => b.onclick = () => { modeFilter = b.dataset.m; renderModes(); renderCmp(); const first = data.missions.findIndex(m => modeFilter === 'all' || (m.mode || 'one-way') === modeFilter); if (first >= 0 && !(modeFilter === 'all' || (mission.mode || 'one-way') === modeFilter)) selectMission(first); }); }
+function renderReg() { const on = !!(mission && mission.summary.surface); $('regseg').style.display = on ? '' : 'none'; const cur = regSel ?? (mission && mission.radiation ? mission.radiation.regolith_used ?? 0 : 0);
+  document.querySelectorAll('#regseg button').forEach(b => b.classList.toggle('on', +b.dataset.r === +cur)); }
+document.querySelectorAll('#regseg button').forEach(b => b.onclick = () => { regSel = +b.dataset.r; renderReg(); renderCmp(); renderRadTable(); lastJd = -1; });
 $('shelter').onchange = e => { sheltered = e.target.checked; renderCmp(); renderRadTable(); lastJd = -1; };
 
 let last = performance.now();
@@ -357,11 +411,12 @@ const NAMES = { 'galileo_veega_1989.json': 'Galileo-89' };
 async function loadFile(f, mi = 0) {
   $('loading').style.opacity = 1; $('loading').style.display = 'grid';
   data = await (await fetch('missions/' + f)).json(); document.querySelectorAll('#targets button').forEach(c => c.classList.toggle('on', c.dataset.f === f));
-  mIndex = Math.min(mi, data.missions.length - 1); buildPlanets(); renderCmp(); selectMission(mIndex);
+  mIndex = Math.min(mi, data.missions.length - 1); buildPlanets(); renderModes(); renderCmp(); selectMission(mIndex);
   $('loading').style.opacity = 0; setTimeout(() => $('loading').style.display = 'none', 400);
 }
 async function boot() {
   const q = new URLSearchParams(location.search);
+  if (q.get('mode')) modeFilter = q.get('mode'); if (q.get('reg') != null) regSel = +q.get('reg');
   if (q.get('shelter') === '0') { sheltered = false; $('shelter').checked = false; }
   resize(); await skyReady; setScale(q.get('scale') !== 'enlarged');
   const idx = await (await fetch('missions/index.json')).json();
@@ -369,6 +424,8 @@ async function boot() {
   $('targets').innerHTML = sorted.map(f => `<button data-f="${f}">${NAMES[f] || f.replace('.json', '')}</button>`).join('');
   document.querySelectorAll('#targets button').forEach(c => c.onclick = () => loadFile(c.dataset.f));
   await loadFile(q.get('file') || (sorted.includes('mars.json') ? 'mars.json' : sorted[0]), +(q.get('m') || 0));
+  if (q.get('mode') && q.get('m') == null) { const k = data.missions.findIndex(m => (m.mode || 'one-way') === q.get('mode')); if (k >= 0) selectMission(k); }
+  if (q.get('pick')) { const k = data.missions.findIndex(m => (m.variant || '').includes(q.get('pick'))); if (k >= 0) selectMission(k); }
   if (q.get('sort')) { sortKey = q.get('sort'); renderCmp(); }
   if (q.get('t')) setT(+q.get('t')); if (q.get('focus')) focusPlanet(q.get('focus')); if (q.get('play')) togglePlay(true);
   if (q.get('still')) { renderer.setAnimationLoop(null); if (tween) tween.t = 1; for (let k = 0; k < 40; k++) frame(performance.now() + k * 16); window.stillDone = true; }
