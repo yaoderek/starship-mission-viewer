@@ -2,7 +2,7 @@
 import * as View from './scene.js';
 import * as Dash from './dashboard.js';
 import { initLayout } from './layout.js';
-import { initHero, renderHero, setHero, initBuilder, openBuilder, closeBuilder, loadPlanetFile, B } from './start.js';
+import { initHero, renderHero, setHero, initBuilder, openBuilder, closeBuilder, loadPlanetFile, renderBuilderHolo, B } from './start.js';
 import { PRESETS, SOLAR_VEHICLES, STAR_VEHICLES, planetById, starById } from './catalog.js';
 import { buildInterstellar } from './interstellar.js';
 import { resizeAll } from './vehicle.js';
@@ -50,7 +50,7 @@ async function ensureScene() {
   if (!sceneReady) sceneReady = (async () => {
     $('app').hidden = false;
     await View.initScene({ canvas: $('c'), host: $('scene'), labelLayer: $('labels'), tipEl: $('tip'), onPick: e => Dash.jumpTo(e) });
-    initLayout(); Dash.bindTimeline(); Dash.bindRadControls();
+    initLayout(); Dash.bindTimeline(); Dash.bindRadControls(); Dash.bindVehicleView();
     document.querySelectorAll('#scale button').forEach(b => b.onclick = () => { const v = b.dataset.s === 'true'; View.setScale(v); document.querySelectorAll('#scale button').forEach(x => x.classList.toggle('on', x === b)); });
     $('rel').onchange = e => View.setRelativistic(e.target.checked);
     $('home').onclick = () => { location.hash = ''; };
@@ -60,7 +60,7 @@ async function ensureScene() {
 }
 
 async function fly(cfg) {
-  loading(true, cfg.kind === 'star' ? 'Plotting course' : 'Loading trajectories');
+  loading(true, cfg.kind === 'star' ? 'PLOTTING COURSE' : 'LOADING EPHEMERIS');
   $('start').hidden = true; $('app').hidden = false; view = 'app';
   await ensureScene();
   const isPreset = !!cfg.preset;
@@ -69,13 +69,13 @@ async function fly(cfg) {
     const s = starById(cfg.dest), v = STAR_VEHICLES.find(x => x.id === cfg.vehicle);
     data = buildInterstellar(s, v.id, cfg.params, cfg.year);
     title = isPreset ? cfg.title : `${v.name} to ${s.name}`;
-    sub = `${s.ly.toFixed(1)} light years, ${v.tag.toLowerCase()}`;
+    sub = `Sun → ${s.name} · ${s.ly.toFixed(1)} ly · ${v.tag}`;
   } else {
     const p = planetById(cfg.dest), v = SOLAR_VEHICLES.find(x => x.id === cfg.vehicle);
     data = await loadPlanetFile(cfg.dest);
-    resizeAll(data, { ...v.p, ...cfg.params });
+    resizeAll(data, { ...v.p, ...cfg.params }); data.vehicleId = v.id;
     title = isPreset ? cfg.title : `${v.name} to ${p.name}`;
-    sub = isPreset ? `${data.missions.length} trajectory options, ${v.name}` : `${data.missions.length} trajectory options`;
+    sub = `Earth → ${p.name} · ${data.missions.length} trajectories · ${v.name}`;
   }
   current = { ...cfg, params: { ...(cfg.params || {}) } };
   $('mtitle').textContent = title; $('msub').textContent = sub; document.title = `${title} · Starship Mission Viewer`;
@@ -101,7 +101,7 @@ function bindStart() {
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
-  if (view === 'start') renderHero(dt);
+  if (view === 'start') { renderHero(dt); renderBuilderHolo(dt); }
   else if (sceneReady) { Dash.tick(dt); View.render(dt); }
   requestAnimationFrame(frame);
 }

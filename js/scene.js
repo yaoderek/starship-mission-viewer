@@ -22,7 +22,7 @@ export const PCOL = { mercury: '#9a958e', venus: '#d8c49a', earth: '#5b8fd0', ma
 const TILT = { mercury: 0.03, venus: 177.4, earth: 23.44, mars: 25.19, jupiter: 3.13, saturn: 26.73, uranus: 97.77, neptune: 28.32 };
 const SPIN = { mercury: 0.02, venus: -0.01, earth: 0.25, mars: 0.24, jupiter: 0.6, saturn: 0.55, uranus: -0.35, neptune: 0.37 };   // cosmetic rad/s
 const ATMO = { venus: ['#f4dca0', 0.9], earth: ['#6fb0ff', 1.2], mars: ['#e8a27a', 0.45], jupiter: ['#e8d4b0', 0.5], saturn: ['#efe0b8', 0.5], uranus: ['#bff0f4', 0.7], neptune: ['#7aa0ff', 0.8] };
-export const EVC = { launch: '#e8e8e8', arrival: '#e8e8e8', flyby: '#8aaec4', dsm: '#c9a24f', hazard: '#c96a5f', surface: '#8fae7a', departure: '#e8e8e8', return: '#e8e8e8' };
+export const EVC = { launch: '#f2f2f2', arrival: '#f2f2f2', flyby: '#a8a8a8', dsm: '#e0b050', hazard: '#e0605a', surface: '#9ccf7a', departure: '#f2f2f2', return: '#f2f2f2' };
 const AU_KM = 149597870.7, SUN_R = 695700 / AU_KM;
 
 let renderer, composer, bloom, scene, skyScene, camera, skyCam, controls, host, canvas, sky, labelLayer, tipEl;
@@ -133,7 +133,7 @@ function buildPlanets() {
     const P = data.planets[name]; if (!P) continue;
     const n = P.orbit.length, g = new THREE.BufferGeometry().setFromPoints(P.orbit.map(p => new THREE.Vector3(...p)));
     g.setAttribute('u', new THREE.Float32BufferAttribute(P.orbit.map((_, k) => k / n), 1));
-    const om = orbitMat(name === data.target ? '#9a9a9a' : '#4a4a4a'); const loop = new THREE.LineLoop(g, om); orbitGroup.add(loop);
+    const om = orbitMat(name === data.target ? '#a0a0a0' : '#4a4a4a'); const loop = new THREE.LineLoop(g, om); orbitGroup.add(loop);
     rmax = Math.max(rmax, ...P.orbit.map(p => Math.hypot(p[0], p[1])));
 
     const group = new THREE.Group(), tilt = new THREE.Group(); group.add(tilt);
@@ -153,7 +153,7 @@ function buildPlanets() {
     makeLabel(cap(name), 'planet', name === data.target ? 60 : 40, () => group.position, 'planet');
   }
   // faint ecliptic reference rings so depth reads at a glance
-  const gm = new THREE.LineBasicMaterial({ color: 0x1e1e1e, transparent: true, opacity: 0.8, depthWrite: false });
+  const gm = new THREE.LineBasicMaterial({ color: 0x1c1c1c, transparent: true, opacity: 0.8, depthWrite: false });
   for (const r of [1, 2, 5, 10, 20, 30, 40].filter(r => r <= rmax * 1.15)) {
     const pts = []; for (let k = 0; k <= 180; k++) { const a = k / 180 * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, 0)); }
     gridGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gm));
@@ -191,7 +191,7 @@ function buildStarMap() {
     const L = makeLabel(s.sol ? 'Sun' : `${s.short || s.name}<span class="d">${s.ly.toFixed(1)} ly</span>`, 'star' + (s.minor ? ' minor' : ''), s.sol ? 70 : s.minor ? 10 : 30, () => v, 'star');
     L.star = s;
   }
-  const gm = new THREE.LineBasicMaterial({ color: 0x1c1c1c, transparent: true, opacity: 0.9 });
+  const gm = new THREE.LineBasicMaterial({ color: 0x1a1a1a, transparent: true, opacity: 0.9 });
   for (let r = 2; r <= 18; r += 2) {
     const pts = []; for (let k = 0; k <= 128; k++) { const a = k / 128 * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, 0)); }
     starGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gm));
@@ -223,9 +223,9 @@ export function setMission(m) {
     const mat = new LineMaterial({ color, linewidth: width, transparent: true, opacity, depthWrite: false });
     mat.resolution.set(W, H); lineMats.push(mat); return new Line2(g, mat);
   };
-  trajPlan = mk(mode === 'interstellar' ? 0x6a6a6a : 0x555555, mode === 'interstellar' ? 1.6 : 1.2, 0.9); missionGroup.add(trajPlan);
-  trajFlown = mk(0xd2d2d2, 2.0); missionGroup.add(trajFlown); nSeg = m.traj.length - 1;
-  shipGlow = sprite(glowTexture('#f0f0f0'), 0xe0e0e0, 0.05, true); shipGlow.material.blending = THREE.AdditiveBlending; missionGroup.add(shipGlow);
+  trajPlan = mk(mode === 'interstellar' ? 0x6a6a6a : 0x5a5a5a, mode === 'interstellar' ? 1.6 : 1.2, 0.9); missionGroup.add(trajPlan);
+  trajFlown = mk(0xe6e6e6, 1.8); missionGroup.add(trajFlown); nSeg = m.traj.length - 1;
+  shipGlow = sprite(glowTexture('#f2f2f2'), 0xe6e6e6, 0.05, true); shipGlow.material.blending = THREE.AdditiveBlending; missionGroup.add(shipGlow);
   ship = sprite(SQ, 0xffffff, 13); missionGroup.add(ship);
   const shipName = mode === 'interstellar' ? m.name.replace(' (custom)', '').replace('Project ', '').toUpperCase() : 'STARSHIP';
   const SL = makeLabel(`${shipName}<span class="sp"></span>`, 'ship', 100, () => ship.position); SL.force = true; SL.speedEl = SL.el.querySelector('.sp'); m._shipLabel = SL;
@@ -301,7 +301,7 @@ export function update(jd, dt, beta = 0) {
   let burn = 0;
   if (mode === 'interstellar') { const ph = (mission.phases || []).find(p => jd >= p.jd0 && jd <= p.jd1); burn = ph && ph.name !== 'cruise' ? 1 : 0; }
   else for (const e of mission.events) if (e.dv > 0.1 && Math.abs(e.jd - jd) < 3) burn = Math.max(burn, 1 - Math.abs(e.jd - jd) / 3);
-  shipGlow.material.color.setRGB(0.85 + 0.15 * burn, 0.85 - 0.1 * burn, 0.85 - 0.4 * burn);
+  shipGlow.material.color.setRGB(0.85 + 0.15 * burn, 0.85 - 0.05 * burn, 0.85 - 0.35 * burn);
   shipGlow.scale.setScalar(0.035 + 0.05 * burn + 0.006 * Math.sin(t0 * 9) * burn);
   let lo = 0, hi = mission.traj.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (mission.traj[m][0] <= jd) lo = m; else hi = m; }
   trajFlown.geometry.instanceCount = Math.max(1, Math.min(nSeg, lo + 1));
@@ -345,7 +345,7 @@ function bindPointer() {
     if (!o) { tipEl.style.opacity = 0; canvas.style.cursor = ''; return; }
     canvas.style.cursor = 'pointer';
     const u = o.userData;
-    tipEl.innerHTML = u.kind === 'planet' ? `<b>${cap(u.name)}</b><br>Radius ${RADIUS[u.name].toLocaleString()} km`
+    tipEl.innerHTML = u.kind === 'planet' ? `<b>${cap(u.name)}</b><br>R = ${RADIUS[u.name].toLocaleString()} km · click to focus`
       : u.kind === 'star' ? `<b>${u.star.name}</b><br>${u.star.sol ? 'Home' : u.star.ly.toFixed(2) + ' light years'}, ${u.star.sp}<br>${u.star.blurb ? `<span class="dim">${u.star.blurb}</span>` : ''}`
       : `<b>${u.e.date || ''} ${cap(u.e.type)}</b><br>${u.e.label}`;
     tipEl.style.opacity = 1; tipEl.style.left = Math.min(ev.clientX - r.left + 14, W - 280) + 'px'; tipEl.style.top = (ev.clientY - r.top + 14) + 'px';

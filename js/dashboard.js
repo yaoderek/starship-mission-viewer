@@ -2,10 +2,12 @@
 import * as THREE from 'three';
 import * as View from './scene.js';
 import { EVC } from './scene.js';
+import { Holo } from './holo.js';
+import { vehicleById } from './catalog.js';
 import { $, cap, esc, f1, int, sig, prob, dur, mass, energy, fmtDate, jdYear, yearJd } from './fmt.js';
 
 const MODES = { 'one-way': 'One-way', conjunction: 'Long stay', opposition: 'Short stay', isru: 'Surface + ISRU', 'round-trip': 'Round trip', rendezvous: 'Stops', flyby: 'Flyby' };
-const C = { surf: '#8fae7a', gcr: '#8aaec4', spe: '#c9a24f', belt: '#c96a5f', tot: '#ececec', p95: '#7a7a7a', lim: '#c96a5f', grid: '#202020', axis: '#6a6a6a' };
+const C = { surf: '#9ccf7a', gcr: '#9a9a9a', spe: '#e0b050', belt: '#e0605a', tot: '#f2f2f2', p95: '#6a6a6a', lim: '#e0605a', grid: '#1c1c1c', axis: '#5a5a5a' };
 let data = null, mission = null, mIndex = 0, modeFilter = 'all', regSel = null, sheltered = true;
 let t = 0, playing = false, sortKey = 'rank', sortDir = 1, lastJd = -1;
 const isStar = () => data && data.kind === 'interstellar';
@@ -21,14 +23,13 @@ export function load(d, mi = 0) {
 export function select(i) {
   mIndex = i; mission = data.missions[i];
   View.setMission(mission);
-  renderCmp(); renderEvents(); renderBudget(); renderReg(); renderRad(); renderHazards(); cabinFor(mission);
+  renderCmp(); renderEvents(); renderBudget(); renderReg(); renderRad(); renderHazards(); cabinFor(mission); holoFor(mission);
   drawTimeline(); setT(0); lastJd = -1;
 }
 export function setT(f) { t = Math.max(0, Math.min(1, f)); }
 export function togglePlay(force) { playing = force ?? !playing; if (t >= 1 && playing) t = 0; $('play').classList.toggle('on', playing); $('play').innerHTML = playing ? PAUSE : PLAY; }
 export const span = () => [mission.traj[0][0], mission.traj[mission.traj.length - 1][0]];
-const PLAY = '<svg viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>';
-const PAUSE = '<svg viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5h3v11H4zm5 0h3v11H9z" fill="currentColor"/></svg>';
+const PLAY = 'PLAY', PAUSE = 'PAUSE';
 
 // Simulation rate in days of Earth time per real second; interstellar trips scale to their length.
 function rate() { const v = +$('speed').value; if (!isStar()) return v; const [a, b] = span(); return (b - a) / ({ 10: 60, 45: 25, 120: 12, 365: 5 }[v] || 25); }
@@ -44,7 +45,7 @@ export function tick(dt) {
   if (q) { $('shipclock').textContent = dur(q.tau); $('speedv').textContent = q.beta >= 0.001 ? `${(q.beta * 100).toFixed(q.beta > 0.99 ? 2 : 1)}% c` : q.beta < 1e-7 ? '0' : `${(q.beta * 299792.458).toFixed(1)} km/s`; }
   $('knob').style.left = (t * 100) + '%';
   if (Math.abs(jd - lastJd) > 1e-6) { drawChart(jd); updateRadNow(jd); lastJd = jd; }
-  updateCabin(jd, dt);
+  if (view === 'cabin') updateCabin(jd, dt); else if (holo) { holo.setThrust(thrustAt(jd)); $('holothr').textContent = thrustAt(jd) > 0.05 ? 'ENGINE ● BURN' : 'ENGINE ○ COAST'; holo.render(dt); }
 }
 
 function starAt(jd) {
@@ -65,12 +66,12 @@ function dose(m) {
 }
 function adj(arr) { const R = mission.radiation, k = regK(mission); if (k === 1 || !R.surf_cum) return arr; return arr.map((v, i) => v - R.surf_cum[i] * (1 - k)); }
 const doseCell = v => v == null ? '<span class="dim">—</span>' : `<span class="${v > 600 ? 'no' : v > 300 ? 'wn' : ''}">${int(v)}</span>`;
-const go = m => m.summary.feasible ? '<span class="ok">Go</span>' : `<span class="no" title="${esc((m.summary.why || []).join('; '))}">No go</span>`;
+const go = m => m.summary.feasible ? '<span class="ok">GO</span>' : `<span class="no" title="${esc((m.summary.why || []).join('; '))}">NO-GO</span>`;
 const pct = b => b >= 0.99999 ? '100%' : b >= 0.01 ? (b * 100).toFixed(b >= 0.99 ? (b >= 0.9995 ? 2 : 1) : 0) + '%' : (b * 299792.458).toFixed(0) + ' km/s';
 
 const SOLAR_COLS = [
   ['rank', '#', '', m => m.rank, m => `<span class="dim">${m.rank}</span>`, 'l'],
-  ['name', 'Route', '', m => m.name, m => `${m.name}<div class="sub">${MODES[m.mode || 'one-way']}${m.summary.stay_days ? `, ${int(m.summary.stay_days)} d stay` : ''}${(m.tags || []).some(x => x.includes('low-dose') || x.includes('alternative')) ? ', low dose' : ''}</div>`, 'l'],
+  ['name', 'Route', '', m => m.name, m => `${m.name}${(m.tags || []).map(x => `<span class="tag">${x.includes('alternative') ? 'LOW-DOSE ALT' : 'LOW-DOSE'}</span>`).join('')}<div class="sub">${MODES[m.mode || 'one-way']}${m.summary.stay_days ? ` · ${int(m.summary.stay_days)} d stay` : ''}</div>`, 'l'],
   ['launch', 'Launch', '', m => m.summary.launch, m => m.summary.launch],
   ['dur', 'Total', 'days', totDays, m => int(totDays(m))],
   ['dv', 'Δv', 'km/s', m => m.summary.dv_total, m => f1(m.summary.dv_total, 2)],
@@ -78,8 +79,8 @@ const SOLAR_COLS = [
   ['dose', 'Dose', 'mSv', m => dose(m).mean ?? 1e9, m => doseCell(dose(m).mean)],
   ['feas', 'Status', '', m => m.summary.feasible ? 0 : 1, go]];
 const STAR_COLS = [
-  ['name', 'Vehicle', '', m => m.rank, m => `${m.name}<div class="sub">${m.model}</div>`, 'l'],
-  ['crew', 'Crew', '', m => m.summary.crew, m => m.summary.crew || '<span class="dim">none</span>'],
+  ['name', 'Vehicle', '', m => m.rank, m => `${m.name}${(m.tags || []).includes('yours') ? '<span class="tag acc">SELECTED</span>' : ''}<div class="sub">${m.model}</div>`, 'l'],
+  ['crew', 'Crew', '', m => m.summary.crew, m => m.summary.crew || '<span class="dim">probe</span>'],
   ['beta', 'Top speed', 'of c', m => m.summary.beta, m => pct(m.summary.beta)],
   ['earth', 'Earth time', '', m => m.summary.earth_days, m => dur(m.summary.earth_days)],
   ['ship', 'Ship time', '', m => m.summary.ship_days, m => `<span class="acc">${dur(m.summary.ship_days)}</span>`],
@@ -97,7 +98,8 @@ function renderCmp() {
     ms.map(([m, i]) => `<tr data-i="${i}" class="${i === mIndex ? 'on' : ''}">${COLS.map(c => `<td class="${c[5] || ''}">${c[4](m)}</td>`).join('')}</tr>`).join('') + '</tbody>';
   $('cmp').querySelectorAll('th').forEach(th => th.onclick = () => { const k = th.dataset.k; sortDir = k === sortKey ? -sortDir : 1; sortKey = k; renderCmp(); });
   $('cmp').querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => select(+tr.dataset.i));
-  $('cmpTitle').textContent = isStar() ? `Every vehicle to ${data.star.name}` : 'Trajectory options';
+  $('cmpTitle').textContent = isStar() ? `Vehicle comparison · ${data.star.name}` : 'Mission comparison';
+  $('cmpHint').textContent = isStar() ? 'click row to fly that vehicle' : 'click header to sort · row to select';
 }
 function renderModes() {
   if (isStar()) { $('modes').innerHTML = ''; $('modes').hidden = true; return; }
@@ -115,7 +117,7 @@ function renderModes() {
 // ------------------------------------------------------------------ events
 function renderEvents() {
   const [t0] = span();
-  $('selname').textContent = isStar() ? mission.name : `${mission.name}, ${MODES[mission.mode || 'one-way'].toLowerCase()}`;
+  $('selname').textContent = isStar() ? mission.name : `${mission.name} · ${mission.model}${mission.variant ? ' · ' + mission.variant : ''}`;
   if (isStar()) {
     const R = mission.radiation, tauAt = jd => { const k = R.jd.findIndex(x => x >= jd - 1e-6); return R.tau[Math.max(0, k)]; };
     $('evt').innerHTML = `<thead><tr><th>Earth</th><th>Ship</th><th class="l">Event</th><th>Speed</th></tr></thead><tbody>` +
@@ -136,7 +138,7 @@ function renderBudget() {
   if (isStar()) return renderStarBudget();
   const S = mission.summary, P = data.vehicleParams, rt = mission.mode && mission.mode !== 'one-way';
   const no = x => `<span class="no">${x}</span>`, ok = x => `<span class="ok">${x}</span>`;
-  $('budtitle').textContent = rt ? `Propellant, ${MODES[mission.mode].toLowerCase()}` : 'Δv and propellant';
+  $('budtitle').textContent = rt ? `Architecture · ${MODES[mission.mode]} · Δv / propellant` : 'Δv and propellant';
   const why = S.why && S.why.length ? `<div class="wide why no">${S.why.map(esc).join('<br>')}</div>` : '';
   let rows;
   if (!rt) rows = [['Departure burn', f1(S.dv_dep, 2), 'km/s'], ['Course corrections', f1(S.dv_dsm, 2), 'km/s'], [`Capture (${S.capture === 'aero' ? 'aerobraking' : S.capture})`, f1(S.dv_capture, 2), 'km/s'],
@@ -171,7 +173,7 @@ function renderStarBudget() {
   if (mission.vehicleId === 'hailmary') {
     // Same ship, same 1.5 g profile, solved with the relativistic rocket equation for exhaust at c.
     const need = p.dry * (S.mr - 1);
-    extra += `<div class="wide book"><b>The book vs the rocket equation</b>A photon rocket holding 1.5 g for the whole trip to Tau Ceti and back to rest needs a mass ratio of e<sup>Δη</sup> ≈ ${sig(S.mr)}. ` +
+    extra += `<div class="wide book"><b>Book vs physics</b>A photon rocket holding 1.5 g for the whole trip to Tau Ceti and back to rest needs a mass ratio of e<sup>Δη</sup> ≈ ${sig(S.mr)}. ` +
       `With ${mass(p.dry)} of ship that is ${mass(need)} of Astrophage. ${need > p.prop * 1.02 ? `The ${mass(p.prop)} loaded is not enough for this profile.` : `The ${mass(p.prop)} loaded covers it.`} ` +
       `Change the dry mass or fuel in Edit mission to see how sensitive the trip is.</div>`;
   }
@@ -191,7 +193,7 @@ function drawIsru() {
   const x = lx(I.plan.prod_days), y = ly(I.plan.power_kw); g.fillStyle = I.feasible_at_config ? C.surf : C.belt; g.fillRect(x - 3, y - 3, 6, 6);
   g.fillText(`This stay needs ${int(I.plan.power_kw)} kW`, Math.min(x + 7, w - 150), y - 6); g.fillStyle = C.axis; g.fillText('days of production', w - 120, h - 6);
 }
-const MONO = '"Geist Mono",ui-monospace,Menlo,monospace';
+const MONO = 'ui-monospace,"JetBrains Mono","DejaVu Sans Mono",Menlo,monospace';
 
 // ------------------------------------------------------------------ radiation
 function renderReg() {
@@ -222,7 +224,7 @@ function renderRad() {
       ['Radiation belts', sh ? T.belts_sh : T.belts, 'Earth, Jupiter'], ...(T.surface ? [['On the surface', T.surface * regK(mission), `0.64 mSv/day × ${(regK(mission) * regF(R, R.regolith_used ?? 0)).toFixed(2)} habitat`]] : []),
       ['Total', D.mean, `bad case ${sig(D.p95)}`]];
   $('radbreak').innerHTML = rows.map(r => `<tr><td class="l">${r[0]}</td><td>${r[1] == null ? '' : sig(r[1]) + ' <em>mSv</em>'}</td><td class="l dim">${r[2]}</td></tr>`).join('');
-  $('radnote').textContent = isStar() ? 'Deep-space rate from Curiosity’s cruise to Mars (1.84 mSv/day), 1.5× beyond the heliopause, scaled for shielding. Rough estimate.'
+  $('radnote').textContent = isStar() ? 'Deep-space rate from Curiosity’s cruise to Mars (1.84 mSv/day), 1.36× beyond the heliopause, scaled for shielding. Rough estimate.'
     : `${mission.mode && mission.mode !== 'one-way' ? 'Whole mission, there and back.' : 'One-way transit.'} Hull ${T.hull_gcm2} g/cm² steel, storm shelter ${T.shelter_gcm2} g/cm² water. Estimates; method in VERIFICATION.md.`;
   $('shval').textContent = `${T.shelter_gcm2} g/cm²`;
 }
@@ -236,7 +238,7 @@ function drawChart(jd) {
   const star = isStar(), xs = star ? R.tau : R.jd.map(x => x - R.jd[0]), tmax = xs[xs.length - 1] || 1, yrs = tmax > 800;
   const tot = adj(sheltered ? R.tot_mean_sh : R.tot_mean), p95 = adj(sheltered ? R.tot_p95_sh : R.tot_p95), spe = sheltered ? R.spe_mean_sh : R.spe_mean, belt = sheltered ? R.belt_cum_sh : R.belt_cum;
   const ymax = Math.max(50, ...p95) * 1.12, X = v => L + v / tmax * w, Y = v => T + h - v / ymax * h;
-  if (!star) for (const ph of mission.phases || []) if (ph.name.includes('stay')) { const a = X(ph.jd0 - R.jd[0]), b = X(ph.jd1 - R.jd[0]); g.fillStyle = 'rgba(143,174,122,.07)'; g.fillRect(a, T, b - a, h); g.fillStyle = '#7f9a6c'; g.fillText('on surface', a + 4, T + h - 5); }
+  if (!star) for (const ph of mission.phases || []) if (ph.name.includes('stay')) { const a = X(ph.jd0 - R.jd[0]), b = X(ph.jd1 - R.jd[0]); g.fillStyle = 'rgba(156,207,122,.07)'; g.fillRect(a, T, b - a, h); g.fillStyle = '#6f8f5a'; g.fillText('on surface', a + 4, T + h - 5); }
   g.strokeStyle = C.grid; g.lineWidth = 1; g.fillStyle = C.axis;
   const step = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000].find(s => ymax / s <= 6) || 1e5;
   for (let v = 0; v <= ymax; v += step) { g.beginPath(); g.moveTo(L, Y(v) + .5); g.lineTo(L + w, Y(v) + .5); g.stroke(); g.fillText(int(v), 4, Y(v) + 3); }
@@ -252,7 +254,7 @@ function drawChart(jd) {
   const now = star ? starAt(jd).tau : jd - R.jd[0], xn = X(Math.min(now, tmax));
   g.strokeStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.moveTo(xn + .5, T); g.lineTo(xn + .5, T + h); g.stroke();
   let lx = L; const items = [['Total', C.tot], ['Bad case', C.p95], ['Cosmic rays', C.gcr], ...(star ? [] : [['Solar storms', C.spe], ['Belts', C.belt]]), ...(R.totals.surface ? [['Surface', C.surf]] : [])];
-  for (const [k, c] of items) { g.fillStyle = c; g.fillRect(lx, 8, 10, 2.5); g.fillStyle = '#9a9a9a'; g.fillText(k, lx + 14, 12); lx += g.measureText(k).width + 26; }
+  for (const [k, c] of items) { g.fillStyle = c; g.fillRect(lx, 8, 10, 2.5); g.fillStyle = '#8a8a8a'; g.fillText(k.toUpperCase(), lx + 14, 12); lx += g.measureText(k).width + 26; }
 }
 function radAt(jd) {
   const R = mission && mission.radiation; if (!R) return null; const J = R.jd, n = J.length;
@@ -280,20 +282,20 @@ const LVL = { HIGH: 0, MED: 1, LOW: 2, INFO: 3 }, LVLNAME = { HIGH: 'High', MED:
 function renderHazards() {
   const hz = mission.risk || [], [t0] = span();
   const counts = Object.fromEntries(Object.keys(LVL).map(k => [k, hz.filter(h => h.level === k).length]));
-  $('hzcount').innerHTML = Object.entries(counts).filter(([k, n]) => n && k !== 'INFO').map(([k, n]) => `<span class="lv ${k}">${n} ${LVLNAME[k].toLowerCase()}</span>`).join('');
+  $('hzcount').innerHTML = Object.entries(counts).filter(([, n]) => n).map(([k, n]) => `<span class="lv ${k}">${n} ${k}</span>`).join('');
   if (!hz.length) { $('hzt').innerHTML = '<div class="empty">No hazard analysis for this case.</div>'; return; }
   const rows = hz.map((h, k) => [h, k]).sort((a, b) => LVL[a[0].level] - LVL[b[0].level]);
   const when = h => h.jd0 == null ? '' : isStar() ? `year ${(jdYear(h.jd0) - jdYear(t0)).toFixed(1)}` : `day ${int(Math.max(0, h.jd0 - t0))}`;
-  const src = s => { if (!s) return ''; const m = s.match(/https?:\/\/[^\s)]+/); if (!m) return `<span class="src">${esc(s)}</span>`; let host = ''; try { host = new URL(m[0]).hostname.replace('www.', ''); } catch { } return `<a class="src" href="${esc(m[0])}" target="_blank" rel="noopener">Source: ${esc(host || 'link')}</a>`; };
+  const src = s => { if (!s) return ''; const m = s.match(/https?:\/\/[^\s)]+/); if (!m) return `<span class="src">${esc(s)}</span>`; let host = ''; try { host = new URL(m[0]).hostname.replace('www.', ''); } catch { } return `<a class="src" href="${esc(m[0])}" target="_blank" rel="noopener">[${esc(host || 'source')}]</a>`; };
   $('hzt').innerHTML = rows.map(([h, k]) => {
     const pr = prob(h.prob);
     return `<article class="hz ${h.level}" data-k="${k}">
-      <header><span class="lv ${h.level}">${LVLNAME[h.level]}</span><span class="cat">${esc(h.cat)}${when(h) ? ', ' + when(h) : ''}</span></header>
-      <h3>${esc(tidy(h.title))}</h3>
-      <div class="metric"><b>${h.value == null ? '—' : sig(h.value)}</b><span>${esc(h.unit || '')}</span></div>
-      ${pr ? `<div class="metric p"><b>${pr}</b><span>${esc(h.prob_label || 'probability')}</span></div>` : ''}
-      ${h.note ? `<p>${esc(tidy(h.note))}</p>` : ''}
-      ${h.source ? `<footer>${src(h.source)}</footer>` : ''}
+      <div class="row"><span class="lv ${h.level}">${h.level}</span><h3>${esc(tidy(h.title))}</h3><b class="mv">${h.value == null ? '—' : sig(h.value)} <em>${esc(h.unit || '')}</em></b><span class="when">${when(h)}</span><span class="car">▸</span></div>
+      <div class="more">
+        <div class="meta"><span>${esc(h.cat)}</span><span>${h.basis === 'quantitative' ? 'QUANTITATIVE' : 'QUALITATIVE'}</span>${pr ? `<span class="p">${pr} <em>${esc(h.prob_label || 'probability')}</em></span>` : ''}</div>
+        ${h.note ? `<p>${esc(tidy(h.note))}</p>` : ''}
+        ${h.source ? `<footer>${src(h.source)}</footer>` : ''}
+      </div>
     </article>`;
   }).join('');
   $('hzt').querySelectorAll('.hz').forEach(el => {
@@ -310,20 +312,20 @@ export function drawTimeline() {
   if (R && !isStar()) {
     const n = R.jd.length, mx = Math.max(...R.gcr_rate);
     for (let k = 0; k < n - 1; k++) { const x0 = X(R.jd[k]), x1 = X(R.jd[k + 1]);
-      g.fillStyle = `rgba(201,162,79,${Math.min(.8, R.spe_p30[k] * 3)})`; g.fillRect(x0, h * .72, x1 - x0 + .5, h * .28);
-      g.fillStyle = `rgba(138,174,196,${.1 + .4 * R.gcr_rate[k] / mx})`; g.fillRect(x0, 0, x1 - x0 + .5, h * .16); }
+      g.fillStyle = `rgba(224,176,80,${Math.min(.9, R.spe_p30[k] * 3)})`; g.fillRect(x0, h * .72, x1 - x0 + .5, h * .28);
+      g.fillStyle = `rgba(200,200,200,${.08 + .4 * R.gcr_rate[k] / mx})`; g.fillRect(x0, 0, x1 - x0 + .5, h * .16); }
   }
   if (R && isStar()) {   // speed profile as a filled curve
     g.beginPath(); g.moveTo(0, h); R.jd.forEach((jd, k) => g.lineTo(X(jd), h - R.beta[k] / Math.max(1e-9, Math.max(...R.beta)) * h * .8)); g.lineTo(w, h); g.closePath();
-    g.fillStyle = 'rgba(200,200,200,.07)'; g.fill(); g.strokeStyle = 'rgba(200,200,200,.45)'; g.stroke();
+    g.fillStyle = 'rgba(240,240,240,.08)'; g.fill(); g.strokeStyle = 'rgba(240,240,240,.5)'; g.stroke();
   }
   for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1), stay = ph.name.includes('stay') || ph.name === 'cruise';
-    g.strokeStyle = stay ? '#55644a' : '#333333'; g.strokeRect(a + .5, h * .2 + .5, Math.max(1, b - a - 1), h * .46);
-    g.fillStyle = stay ? 'rgba(143,174,122,.07)' : 'rgba(0,0,0,0)'; g.fillRect(a, h * .2, b - a, h * .46); }
+    g.strokeStyle = stay ? '#6f8f5a' : '#3a3a3a'; g.strokeRect(a + .5, h * .2 + .5, Math.max(1, b - a - 1), h * .46);
+    g.fillStyle = stay ? 'rgba(156,207,122,.10)' : 'rgba(0,0,0,0)'; g.fillRect(a, h * .2, b - a, h * .46); }
   for (const hz of mission.risk || []) if (hz.jd0 != null && !isStar()) { const x0 = X(Math.max(t0, hz.jd0)), x1 = Math.max(x0 + 2, X(Math.min(t1, hz.jd1 ?? hz.jd0)));
-    g.fillStyle = hz.level === 'HIGH' ? 'rgba(201,106,95,.45)' : 'rgba(201,162,79,.3)'; g.fillRect(x0, h * .24, x1 - x0, h * .38); }
+    g.fillStyle = hz.level === 'HIGH' ? 'rgba(224,96,90,.55)' : 'rgba(224,176,80,.4)'; g.fillRect(x0, h * .24, x1 - x0, h * .38); }
   g.font = '10px ' + MONO;
-  for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1); if (b - a < 40) continue; g.fillStyle = ph.name.includes('stay') ? '#8fae7a' : '#9a9a9a'; g.fillText(cap(ph.name), a + 5, h * .2 + 13); }
+  for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1); if (b - a < 40) continue; g.fillStyle = ph.name.includes('stay') ? '#9ccf7a' : '#8a8a8a'; g.fillText(cap(ph.name), a + 5, h * .2 + 13); }
   if (!isStar() && R) { g.fillStyle = '#5a5a5a'; g.textAlign = 'right'; g.fillText('cosmic-ray rate', w - 4, 9); g.fillText('solar storm odds', w - 4, h - 3); g.textAlign = 'left'; }
   $('ticks').innerHTML = mission.events.map(e => `<div class="tick" title="${esc((e.date || '') + ' ' + e.label)}" style="left:${(e.jd - t0) / (t1 - t0) * 100}%;background:${EVC[e.hazard ? 'hazard' : e.type]}"></div>`).join('');
   const y0 = jdYear(t0), y1 = jdYear(t1), spanY = y1 - y0;
@@ -352,17 +354,17 @@ function initCabin() {
   const S = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 400); cam.up.set(0, 0, 1);
   S.add(new THREE.AmbientLight(0xffffff, .55)); const dl = new THREE.DirectionalLight(0xffffff, 1.1); dl.position.set(6, -9, 12); S.add(dl);
   const RH = 4.5, HG = 7.0, ARC = Math.PI * 1.25, A0 = Math.PI * 0.375;
-  const heatCols = ['#262a2e', '#4a5a66', '#b8913f', '#c96a5f'].map(c => new THREE.Color(c));
+  const heatCols = ['#1a1a1a', '#5a5a5a', '#d0a040', '#e0605a'].map(c => new THREE.Color(c));
   const heat = x => { x = Math.max(0, Math.min(1, x || 0)); const s = x * 3, k = Math.min(2, Math.floor(s)); return heatCols[k].clone().lerp(heatCols[k + 1], s - k); };
   const hullGeo = new THREE.CylinderGeometry(RH, RH, HG, 64, 10, true, A0, ARC); hullGeo.rotateX(Math.PI / 2);
   hullGeo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(hullGeo.attributes.position.count * 3), 3));
   const hull = new THREE.Mesh(hullGeo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: .82 })); S.add(hull);
   S.add(new THREE.LineSegments(new THREE.EdgesGeometry(hullGeo, 30), new THREE.LineBasicMaterial({ color: 0x8a8a8a })));
-  const deck = new THREE.Mesh(new THREE.CircleGeometry(RH, 64, A0, ARC), new THREE.MeshLambertMaterial({ color: 0x222222, side: THREE.DoubleSide })); deck.position.z = -HG / 2; S.add(deck);
+  const deck = new THREE.Mesh(new THREE.CircleGeometry(RH, 64, A0, ARC), new THREE.MeshLambertMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide })); deck.position.z = -HG / 2; S.add(deck);
   const deck2 = deck.clone(); deck2.position.z = 0.6; deck2.material = deck.material.clone(); deck2.material.transparent = true; deck2.material.opacity = .35; S.add(deck2);
   const shG = new THREE.CylinderGeometry(1.6, 1.6, 2.4, 40, 1, true, A0, ARC); shG.rotateX(Math.PI / 2);
-  const shMat = new THREE.MeshLambertMaterial({ color: 0x4a5a66, transparent: true, opacity: .55, side: THREE.DoubleSide }), shelter = new THREE.Mesh(shG, shMat); shelter.position.z = -HG / 2 + 1.2; S.add(shelter);
-  const shEdge = new THREE.LineSegments(new THREE.EdgesGeometry(shG, 30), new THREE.LineBasicMaterial({ color: 0xb0b0b0 })); shEdge.position.copy(shelter.position); S.add(shEdge);
+  const shMat = new THREE.MeshLambertMaterial({ color: 0x5a5a5a, transparent: true, opacity: .55, side: THREE.DoubleSide }), shelter = new THREE.Mesh(shG, shMat); shelter.position.z = -HG / 2 + 1.2; S.add(shelter);
+  const shEdge = new THREE.LineSegments(new THREE.EdgesGeometry(shG, 30), new THREE.LineBasicMaterial({ color: 0xd0d0d0 })); shEdge.position.copy(shelter.position); S.add(shEdge);
   const crew = new THREE.Group(); S.add(crew);
   const NP = 420, pPos = new Float32Array(NP * 3), pCol = new Float32Array(NP * 3), ps = Array.from({ length: NP }, () => ({ live: false }));
   const pGeo = new THREE.BufferGeometry(); pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
@@ -377,13 +379,35 @@ function initCabin() {
   };
   new ResizeObserver(fit).observe(host); fit();
 }
+// ------------------------------------------------------------------ holographic vehicle
+let holo = null, view = 'holo';
+export function bindVehicleView() {
+  holo = new Holo($('holo'), $('holowrap'));
+  $('vseg').querySelectorAll('button').forEach(b => b.onclick = () => {
+    view = b.dataset.v; $('vseg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    $('holowrap').hidden = view !== 'holo'; $('cutwrap').hidden = view !== 'cabin'; holo.visible = view === 'holo';
+    if (mission) cabinFor(mission);
+  });
+}
+function holoFor(m) {
+  if (!holo) return;
+  const id = m.vehicleId || data.vehicleId || 'starship', v = vehicleById(isStar() ? 'star' : 'planet', id);
+  holo.show(id); $('holoname').textContent = v ? v.name : id;
+  $('hololen').textContent = holo.info.lengthLabel || (holo.info.length ? `L ${holo.info.length} m` : 'NOT TO SCALE');
+}
+function thrustAt(jd) {
+  if (isStar()) { const ph = (mission.phases || []).find(p => jd >= p.jd0 && jd <= p.jd1); return ph && ph.name !== 'cruise' ? 1 : 0; }
+  let b = 0; for (const e of mission.events) if (e.dv > 0.1 && Math.abs(e.jd - jd) < 3) b = Math.max(b, 1 - Math.abs(e.jd - jd) / 3);
+  return b;
+}
+
 function cabinFor(m) {
   if (!cab) initCabin();
   const n = isStar() ? Math.min(6, m.summary.crew || 0) : 4;
   cab.crew.clear();
   for (let k = 0; k < n; k++) { const b = new THREE.Mesh(new THREE.CapsuleGeometry(.2, .9, 4, 10), new THREE.MeshLambertMaterial({ color: 0xd8dee4 })); b.rotation.x = Math.PI / 2; const a = k / Math.max(1, n) * Math.PI * 2 + 0.4; b.position.set(Math.cos(a) * .8, Math.sin(a) * .8, -cab.HG / 2 + .75); cab.crew.add(b); }
   const p = m.params || {};
-  $('cutnote').textContent = isStar() ? (p.absorbs ? 'Fuel tanks wrap the crew' : !m.summary.crew ? 'Uncrewed: no cabin' : `${sig(p.shield)} g/cm² shielding`) : '4 mm steel hull, water storm shelter';
+  $('cutnote').textContent = view !== 'cabin' ? '' : isStar() ? (p.absorbs ? 'Fuel tanks wrap the crew' : !m.summary.crew ? 'Uncrewed: no cabin' : `${sig(p.shield)} g/cm² shielding`) : 'hull 4 mm 304L · shelter water';
   cab.astro = !!p.absorbs; cab.probe = isStar() && !m.summary.crew;
 }
 function spawn(q, kind, shelterOn) {
@@ -409,9 +433,9 @@ function updateCabin(jd, dt) {
     if (!p.live) { cab.pPos[k * 3 + 2] = 1e4; return; }
     p.x.addScaledVector(p.d, p.v); const rr = Math.hypot(p.x.x, p.x.y);
     if ((p.stopR > 0 && rr < p.stopR) || p.x.length() > 16) p.live = false;
-    cab.pPos.set([p.x.x, p.x.y, p.x.z], k * 3); cab.pCol.set(p.kind === 'gcr' ? [.54, .68, .77] : p.kind === 'belt' ? [.79, .42, .37] : [.79, .64, .31], k * 3);
+    cab.pPos.set([p.x.x, p.x.y, p.x.z], k * 3); cab.pCol.set(p.kind === 'gcr' ? [.85, .85, .85] : p.kind === 'belt' ? [.88, .38, .35] : [.88, .69, .31], k * 3);
   });
   cab.pGeo.attributes.position.needsUpdate = cab.pGeo.attributes.color.needsUpdate = true;
-  $('cutleg').innerHTML = `<span style="color:${C.gcr}">Cosmic rays</span>${isStar() ? '' : `<span style="color:${C.spe}">Solar protons</span><span style="color:${C.belt}">Belt particles</span>`}<b>${rate.toFixed(2)} mSv/day</b>`;
+  $('cutleg').innerHTML = `<span><i style="color:${C.gcr}">■</i> GCR (penetrating)</span>${isStar() ? '' : `<span><i style="color:${C.spe}">■</i> SPE p</span><span><i style="color:${C.belt}">■</i> trapped</span>`}<b>${rate.toFixed(2)} mSv/d</b>`;
   cab.r.render(cab.S, cab.cam);
 }

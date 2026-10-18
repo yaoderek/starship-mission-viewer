@@ -4,6 +4,7 @@ import { loadSkyData, makeSky } from './sky.js';
 import { planetTexture, atmosphereMaterial, glowTexture, earthClouds } from './textures.js';
 import { PLANETS, STARS, SOLAR_VEHICLES, STAR_VEHICLES, planetById, starById } from './catalog.js';
 import { buildMission } from './interstellar.js';
+import { Holo } from './holo.js';
 import { resizeAll } from './vehicle.js';
 import { $, esc, dur, mass, sig, int, f1 } from './fmt.js';
 
@@ -28,7 +29,7 @@ export async function initHero() {
     g.rotation.z = 0.35; g.visible = false; pivot.add(g); return g;
   };
   const planets = { mars: mk('mars'), earth: mk('earth') };
-  const star = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('#fff6e8'), color: 0xfff0dc, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const star = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('#fff2d8'), color: 0xffe2b0, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
   star.scale.setScalar(1.6); sc.add(star); star.visible = false;
   hero = { r, skyScene, skyCam, sc, cam, sky, planets, star, mode: 'mars', fade: 1, target: 'mars', beta: 0, t: 0, yaw: 0.6 };
   const resize = () => { const w = innerWidth, h = innerHeight; r.setSize(w, h, false); cam.aspect = skyCam.aspect = w / h; cam.updateProjectionMatrix(); skyCam.updateProjectionMatrix(); place(); };
@@ -72,10 +73,17 @@ export async function loadPlanetFile(id) {
   return fileCache[f];
 }
 
+let bholo = null;
+export function renderBuilderHolo(dt) { if (bholo && !$('builder').hidden) bholo.render(dt); }
 export function initBuilder(launch) {
   onLaunch = launch;
-  $('dPlanets').innerHTML = PLANETS.map(p => `<button data-k="planet" data-id="${p.id}">${p.name}</button>`).join('');
-  $('dStars').innerHTML = STARS.map(s => `<button data-k="star" data-id="${s.id}">${s.short}<em>${s.ly.toFixed(1)} ly</em></button>`).join('');
+  bholo = new Holo($('bholo'), $('bholowrap'));
+  $('dPlanets').innerHTML = PLANETS.map(p => `<button data-k="planet" data-id="${p.id}"><i style="color:${pdot(p.id)}">■</i>${p.name}</button>`).join('');
+  $('dStars').innerHTML = STARS.map(s => `<button data-k="star" data-id="${s.id}"><i style="color:${s.col}">■</i>${s.short}<em>${s.ly.toFixed(1)} ly</em></button>`).join('');
+  bindDest();
+}
+const pdot = id => ({ mercury: '#9a958e', venus: '#d8c49a', mars: '#c8714f', jupiter: '#d3b48c', saturn: '#d8c595', uranus: '#9fd3d8', neptune: '#5b78d8' }[id]);
+function bindDest() {
   document.querySelectorAll('#dPlanets button,#dStars button').forEach(b => b.onclick = () => {
     const kind = b.dataset.k; if (kind !== B.kind) { B.vehicle = kind === 'star' ? 'hailmary' : 'starship'; B.params = {}; }
     B.kind = kind; B.dest = b.dataset.id; renderBuilder();
@@ -95,10 +103,11 @@ function veh() { return vehicles().find(v => v.id === B.vehicle) || vehicles()[0
 function renderBuilder() {
   document.querySelectorAll('#dPlanets button,#dStars button').forEach(b => b.classList.toggle('on', b.dataset.id === B.dest));
   const d = B.kind === 'star' ? starById(B.dest) : planetById(B.dest);
-  $('destBlurb').innerHTML = `<b>${esc(d.name)}</b>${B.kind === 'star' ? `, ${d.ly.toFixed(2)} light years` : ''}. ${esc(d.blurb)}`;
+  $('destBlurb').innerHTML = `<b>${esc(d.name)}</b>${B.kind === 'star' ? ` · ${d.ly.toFixed(2)} ly · ${d.sp}` : ''}<br>${esc(d.blurb)}`;
   setHero(B.kind === 'star' ? 'star' : B.dest === 'mars' ? 'mars' : 'earth');
-  $('vehList').innerHTML = vehicles().map(v => `<button class="veh ${v.id === veh().id ? 'on' : ''}" data-id="${v.id}"><span class="vt"><b>${esc(v.name)}</b><em>${esc(v.tag)}${v.crewed ? ', crewed' : ''}</em></span><span class="vb">${esc(v.blurb)}</span></button>`).join('');
+  $('vehList').innerHTML = vehicles().map(v => `<button class="veh ${v.id === veh().id ? 'on' : ''}" data-id="${v.id}"><span class="vt"><b>${esc(v.name)}</b><em>${esc(v.tag)}</em>${v.crewed ? '<span class="tag ok">CREWED</span>' : ''}</span><span class="vb">${esc(v.blurb)}</span></button>`).join('');
   $('vehList').querySelectorAll('.veh').forEach(b => b.onclick = () => { B.vehicle = b.dataset.id; B.params = {}; renderBuilder(); });
+  bholo.show(veh().id); $('bholoname').textContent = veh().name; $('bhololen').textContent = bholo.info.lengthLabel || (bholo.info.length ? `L ${bholo.info.length} m` : 'NOT TO SCALE');
   renderParams(); estimate();
 }
 function renderParams() {
@@ -109,7 +118,7 @@ function renderParams() {
     if (v.id === 'hailmary') html += `<label class="check"><input type="checkbox" data-k="followBook" ${p.followBook ? 'checked' : ''}> Fly the book’s profile: 1.5 g all the way, whether or not the fuel allows it</label>`;
     html += `<label class="field"><span>Launch year</span><input type="number" data-year step="1" value="${B.year}"><em></em></label>`;
   }
-  html += `<button class="link" id="preset-reset">Reset to ${esc(v.name)} defaults</button>`;
+  html += `<button class="ghost small" id="preset-reset">Reset to ${esc(v.name)} defaults</button>`;
   $('params').innerHTML = html;
   $('params').querySelectorAll('input[data-k]').forEach(inp => inp.oninput = () => {
     const k = inp.dataset.k;
