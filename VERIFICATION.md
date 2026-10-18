@@ -281,3 +281,23 @@ Pareto plots: `output/<planet>/pareto_dv_dose.png`; cumulative-dose plots: `outp
 Book figures (100 t ship, 2,000 t Astrophage, 1.5 g, 3 crew in coma, Tau Ceti) come from fan summaries of the novel; Andy Weir has said he tuned the fuel figure for the story (Physics Today). Star positions and distances: SIMBAD J2000; Alpha Centauri at 4.34 ly (system parallax 750.81 mas).
 
 **Interstellar radiation (rough).** Deep-space GCR 1.84 mSv/day (MSL/RAD cruise, Zeitlin 2013) up to 20 g/cm², two-exponential falloff beyond, ×1.36 outside the heliosphere (~2.5 mSv/day; estimate built from Semyonov's ~0.7 Sv/yr unshielded and Voyager modulation data, no published crew calculation found). Ship-time integrated. Hazard cards also compute the oncoming interstellar hydrogen energy (n_H = 0.2 cm⁻³, Crawford 2011), the water depth needed to stop it (Bragg-Kleeman fit, extrapolated above ~300 MeV), and dust energy per m² (dust density 6.2×10⁻²⁴ kg/m³). These are order-of-magnitude figures.
+
+## v0.6 Live radiation model in the browser (storm rollouts, shielding, cancer risk)
+
+`planner/export_solar.py` writes `missions/solar.json`: the sunspot record and NOAA forecast band, the cycle-26 shape and amplitude draws, the φ(SSN) regression, the GCR calibration constants, the SPE rate constant and the 118-event >30 MeV fluence catalogue (normalised to August 1972). `js/radiation.js` is a line-for-line port of `mission_dose`, so the viewer can roll storm histories live and recompute dose for any shielding.
+
+**Port check** (`node`, 800 rollouts, default 20 g/cm² shelter, against the Python totals stored in the mission files): central cosmic-ray dose matches to within 0.3% on every Mars, Venus, Jupiter and Saturn route, and mean storm and belt doses agree within Monte Carlo noise. The JS "bad case" (95th percentile) also carries the cosmic-ray uncertainty (solar-cycle draw, φ residual, ±30% cabin factor). The Python `total_p95` held cosmic rays at their central value, so the new bad case is wider and more honest.
+
+**Shielding** (new):
+- *Cabin wall:* water added around the crew deck (≈410 m², so 4.1 t per g/cm²).
+- *Storm shelter:* water, 0–40 g/cm² (≈40 m²). Mass above the 20 g/cm² baseline is added to dry mass, so tankers and feasibility respond.
+- *Cosmic rays vs depth:* NASA TM-2012-217361 Table 6a water curve (0.57/0.53/0.48/0.46 Sv/yr at 5/10/20/40 g/cm²), with the hull as the 5 g/cm² point. 40 g/cm² of water cuts cosmic rays by only about 19%.
+- *Storms:* August-1972 dose-vs-depth table, as before.
+- *Earth belts:* e-folding of 26 g/cm², which reproduces the Artemis I shelter/wall ratio.
+- *Jupiter belts:* Juno vault attenuation, with no credit beyond 4.5 g/cm².
+
+**Risk to crew:**
+- *Cancer chance:* 1 − exp(−0.08 · dose in Sv). The 8%/Sv is BEIR VII Table 12D-1 lifetime attributable incidence for exposure at 35–40, sexes averaged; mortality is about 1.8× lower. NASA's 600 mSv limit is a mean 3% REID for a 35-year-old woman (NASEM 2021). NASA's 95% interval runs about 3× below to 3.5× above the mean (Cucinotta et al., NASA TM-2012-217361).
+- *Radiation sickness:* lognormal dose-response for prodromal vomiting, median 1.8 Gy, σ 0.46 (about 10% at 1 Gy, IAEA Safety Reports 2 via REMM). It is applied to the largest single storm or belt dose in each rollout, using BFO dose equivalent as Gy (cautious).
+
+**Storm rollouts:** each playback rolls one storm history on the median solar cycle; REROLL or replaying from the end rolls another, and `?seed=N` reproduces one. The statistics (expected dose, 5–95% band, chances) come from 600 rollouts with full solar-cycle draws.

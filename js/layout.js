@@ -60,18 +60,5 @@ export function initLayout() {
       g.addEventListener('dblclick', () => { a.style.flexGrow = a.dataset.grow; b.style.flexGrow = b.dataset.grow; save(); });
     }
   });
-  // expand / restore
-  document.querySelectorAll('#grid .panel .max').forEach(btn => {
-    const p = btn.closest('.panel');
-    btn.onclick = () => toggleMax(p);
-    const h = p.querySelector('.ph'); if (h) h.addEventListener('dblclick', e => { if (!e.target.closest('button,label,input')) toggleMax(p); });
-  });
-  addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.panel.maxed').forEach(toggleMax); });
   $('resetlayout').onclick = resetLayout;
-}
-function toggleMax(p) {
-  const on = !p.classList.contains('maxed');
-  document.querySelectorAll('.panel.maxed').forEach(q => { q.classList.remove('maxed'); q.querySelector('.max').textContent = '⤢'; });
-  if (on) { p.classList.add('maxed'); p.querySelector('.max').textContent = '✕'; }
-  document.body.classList.toggle('has-max', on);
 }

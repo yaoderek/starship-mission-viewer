@@ -29,7 +29,7 @@ let renderer, composer, bloom, scene, skyScene, camera, skyCam, controls, host, 
 let W = 1, H = 1, mode = 'solar', trueScale = true, data = null, mission = null, relView = true;
 const lineMats = [], labels = [], hoverables = [];
 let planets = {}, orbitGroup, gridGroup, missionGroup, starGroup, sunGroup, sunMesh, sunGlow, sunHalo, ship, shipGlow, trajFlown, trajPlan, nSeg = 0;
-let focus = null, tween = null, onPick = null, curJd = 0;
+let focus = null, tween = null, onPick = null, curJd = 0, storm = null;
 const vtmp = new THREE.Vector3();
 
 // ------------------------------------------------------------------ setup
@@ -60,6 +60,7 @@ export async function initScene(opts) {
   sunGlow = sprite(glowTexture('#fff3d8'), 0xfff0d0, 1, true); sunHalo = sprite(glowTexture('rgba(255,190,120,0.55)'), 0xffb070, 1, true);
   sunGlow.material.blending = sunHalo.material.blending = THREE.AdditiveBlending;
   sunGroup.add(sunMesh, sunHalo, sunGlow);
+  buildStorm();
 
   const d = await loadSkyData(); sky = makeSky(d); skyScene.add(sky.group);
   buildStarMap();
@@ -268,6 +269,51 @@ export function setScale(v) { trueScale = v; if (focus) focusPlanet(focus); }
 export function setRelativistic(v) { relView = v; }
 export const getMode = () => mode;
 
+// ------------------------------------------------------------------ solar storm
+// A storm in the current run: a shell of particles racing out from the Sun past the ship, and the Sun flaring.
+// Played in wall-clock time (about 2.5 s) so it reads at any playback speed.
+function buildStorm() {
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uA: { value: 0 }, uCol: { value: new THREE.Color('#e0b050') } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    vertexShader: `varying vec3 vN; varying vec3 vV;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main(){ vec4 wp = modelMatrix * vec4(position, 1.); vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - wp.xyz);
+      gl_Position = projectionMatrix * viewMatrix * wp;
+      #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader: `uniform float uA; uniform vec3 uCol; varying vec3 vN; varying vec3 vV;
+      #include <logdepthbuf_pars_fragment>
+      void main(){
+      #include <logdepthbuf_fragment>
+      float f = pow(1. - abs(dot(normalize(vN), vV)), 3.); gl_FragColor = vec4(uCol * (f * .9 + .03) * uA, (f * .9 + .03) * uA); }`,
+  });
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat); shell.visible = false; shell.renderOrder = 3;
+  const pts = []; for (let k = 0; k <= 160; k++) { const a = k / 160 * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a), Math.sin(a), 0)); }
+  const ringMat = new THREE.LineBasicMaterial({ color: 0xe0b050, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+  const ring = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), ringMat); ring.visible = false;
+  scene.add(shell, ring);
+  storm = { shell, ring, mat, ringMat, t: 1, dur: 2.6, strength: 0, label: null };
+}
+export function stormPulse(strength = 0.6, cls = '') {
+  if (!storm || mode !== 'solar') return;
+  Object.assign(storm, { t: 0, strength, rmax: Math.max(1.6, ship ? ship.position.length() * 1.6 : 2) });
+  if (!storm.label) { storm.label = makeLabel('', 'storm', 95, () => storm.labelPos, 'storm'); storm.label.force = true; storm.labelPos = new THREE.Vector3(); }
+  storm.label.el.innerHTML = `Solar storm${cls ? ` · ${cls}` : ''}`; storm.label.w = 0;
+}
+function updateStorm(dt) {
+  if (!storm) return;
+  const on = storm.t < 1; storm.shell.visible = storm.ring.visible = on;
+  if (storm.label) storm.label.visible = on && storm.t < 0.85;
+  if (!on) { sunGlow.material.color.set(0xfff0d0); return; }
+  storm.t = Math.min(1, storm.t + dt / storm.dur);
+  const e = 1 - Math.pow(1 - storm.t, 2), r = Math.max(SUN_R * 2, e * storm.rmax), a = storm.strength * (1 - storm.t) ** 1.3;
+  storm.shell.scale.setScalar(r); storm.ring.scale.setScalar(r); storm.mat.uniforms.uA.value = a * 1.4; storm.ringMat.opacity = Math.min(1, a * 1.6);
+  if (ship) storm.labelPos.copy(ship.position).normalize().multiplyScalar(r);
+  const fl = Math.max(0, 1 - storm.t * 3) * storm.strength; sunGlow.material.color.setRGB(1 + fl * 0.6, 0.94 + fl * 0.1, 0.82 - fl * 0.4);
+  if (shipGlow && Math.abs(r - ship.position.length()) < storm.rmax * 0.15) shipGlow.material.color.setRGB(1, 0.72, 0.3);
+}
+
 // ------------------------------------------------------------------ per frame
 export function update(jd, dt, beta = 0) {
   if (!mission) return;
@@ -293,6 +339,7 @@ export function update(jd, dt, beta = 0) {
     sunMesh.scale.setScalar(trueScale ? SUN_R : Math.max(0.03, 0.006 * camD));
     sunGlow.scale.setScalar(0.085); sunHalo.scale.setScalar(0.2);
     sky.uniforms.uBeta.value = 0;
+    updateStorm(dt);
   } else {
     sunGlow.scale.setScalar(0.05); sunHalo.scale.setScalar(0.09);
     sky.uniforms.uBeta.value = relView ? Math.min(beta, 0.9995) : 0;

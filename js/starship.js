@@ -56,7 +56,7 @@ export function buildStarship(mats) {
     const p = []; for (let i = 0; i <= 16; i++) { const s = i / 16; p.push(new THREE.Vector2(r * Math.sin(s * Math.PI / 2), dir * sag * Math.cos(s * Math.PI / 2))); }
     const g = new THREE.LatheGeometry(p, 48), o = new THREE.Group(); o.add(new THREE.Mesh(g, mats.inner)); o.add(lines(ring(r * 0.66, dir * sag * 0.75, 48), mats.faint)); o.position.y = y; return o;
   }
-  // thin tapered plate (flap / fin) in the plane containing the body axis
+  // thin tapered plate (flap / fin) in the plane containing the body axis; sweep is the tip's offset from the aft end of the root
   function plate(root, tip, span, sweep, thick) {
     const s = new THREE.Shape(); s.moveTo(0, 0); s.lineTo(span, sweep); s.lineTo(span, sweep + tip); s.lineTo(0, root); s.closePath();
     const g = new THREE.ExtrudeGeometry(s, { depth: thick, bevelEnabled: true, bevelThickness: thick * 0.3, bevelSize: thick * 0.3, bevelSegments: 1 });
@@ -99,9 +99,9 @@ export function buildStarship(mats) {
     piv.userData.dynamic = true; ship.add(piv); flaps[key] = hinge;
   };
   const fwdSlope = Math.atan((noseR(2.2) - noseR(9.4)) / 7.2);
-  for (const side of [-1, 1]) flap(Math.PI + side * 70 * Math.PI / 180, barrel + 2.2, noseR(2.2), fwdSlope, plate(7.2, 2.6, 3.1, 4.0, 0.3), 'fwd' + (side < 0 ? 'L' : 'R'));
+  for (const side of [-1, 1]) flap(Math.PI + side * 70 * Math.PI / 180, barrel + 2.2, noseR(2.2), fwdSlope, plate(7.2, 2.6, 3.1, 0.6, 0.3), 'fwd' + (side < 0 ? 'L' : 'R'));
   // aft flaps: larger, on the sides, slightly leeward
-  for (const side of [-1, 1]) flap(side * 100 * Math.PI / 180, 1.4, R, 0, plate(10.8, 5.2, 4.3, 4.6, 0.36), 'aft' + (side < 0 ? 'L' : 'R'));
+  for (const side of [-1, 1]) flap(side * 100 * Math.PI / 180, 1.4, R, 0, plate(10.8, 5.2, 4.3, 1.0, 0.36), 'aft' + (side < 0 ? 'L' : 'R'));
   // chines/aero covers between the flaps
   for (const side of [-1, 1]) { const th = side * 100 * Math.PI / 180; const c = mesh(new THREE.BoxGeometry(0.5, 21, 0.35), mats.hull, at(R + 0.15, th, 22.5), [0, th, 0]); ship.add(c); }
   // Starlink deploy slot ("PEZ" door) on the leeward side, catch points under the forward flaps
