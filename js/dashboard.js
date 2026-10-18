@@ -324,30 +324,155 @@ function renderHazards() {
 }
 
 // ------------------------------------------------------------------ timeline
+// Each series is drawn against its own min/max. A swing under ~8% stays a thin line:
+// stretching it to the full lane would invent a signal the data does not have.
+function seriesBounds(arr) {
+  let mn = Infinity, mx = -Infinity;
+  for (let i = 0; i < (arr ? arr.length : 0); i++) { const v = arr[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+  if (!isFinite(mn)) return { mn: 0, mx: 0, span: 0, flat: true };
+  const span = mx - mn;
+  const flat = span <= 1e-6 || Math.abs(mx) < 1e-9 || span / Math.abs(mx) < 0.08;
+  return { mn, mx, span, flat };
+}
+const oddsPct = v => { const p = v * 100; return (p >= 10 ? p.toFixed(0) : p >= 1 ? p.toFixed(1) : p.toFixed(2)) + '%'; };
+const betaText = v => { if (v < 5e-4) return '0'; const s = pct(v); return s.endsWith('%') ? s + ' c' : s; };
+function laneChip(g, text, x, y, color) {
+  g.font = '10px ' + MONO; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  const tw = Math.ceil(g.measureText(text).width);
+  g.fillStyle = 'rgba(5,5,5,.9)'; g.fillRect(x, y - 9, tw + 6, 12);
+  g.fillStyle = color; g.fillText(text, x + 3, y);
+  return x + tw + 8;
+}
+function paintSeries(g, xs, vals, b, y0, y1, w, stroke, fill, lw = 1.25) {
+  const n = vals.length, mid = (y0 + y1) / 2;
+  g.lineWidth = lw; g.lineJoin = 'round'; g.lineCap = 'round'; g.strokeStyle = stroke;
+  if (b.flat || b.span <= 1e-9) {
+    const y = Math.round(mid) + 0.5;
+    g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+    return;
+  }
+  const Y = v => y1 - 1.5 - ((v - b.mn) / b.span) * (y1 - y0 - 3);
+  g.beginPath(); g.moveTo(xs[0], y1 - 0.5);
+  for (let k = 0; k < n; k++) g.lineTo(xs[k], Y(vals[k]));
+  g.lineTo(xs[n - 1], y1 - 0.5); g.closePath();
+  g.fillStyle = fill; g.fill();
+  g.beginPath();
+  for (let k = 0; k < n; k++) { if (k) g.lineTo(xs[k], Y(vals[k])); else g.moveTo(xs[k], Y(vals[k])); }
+  g.stroke();
+}
+function tickStem(g, x, y0, y1, color, cap, lw = 1.25) {
+  const px = Math.round(x) + 0.5;
+  g.strokeStyle = color; g.lineWidth = lw; g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke();
+  if (!cap) return;
+  g.fillStyle = color; const hw = lw > 1.5 ? 3 : 2;
+  g.fillRect(Math.round(x) - hw, cap === 'top' ? y0 : y1 - 2, hw * 2 + 1, 2);
+}
+function stormWindows(vals, b) {
+  if (b.flat) return [];
+  const thr = b.mn + 0.62 * b.span, wins = [];
+  let on = false, s = 0, bi = 0, best = -Infinity;
+  for (let i = 0; i < vals.length; i++) {
+    if (vals[i] >= thr) { if (!on) { on = true; s = i; best = vals[i]; bi = i; } else if (vals[i] > best) { best = vals[i]; bi = i; } }
+    else if (on) { on = false; wins.push({ s, e: i - 1, bi, best }); }
+  }
+  if (on) wins.push({ s, e: vals.length - 1, bi, best });
+  return wins;
+}
+
 export function drawTimeline() {
-  if (!mission) return; const tlc = $('tlc'), r = tlc.getBoundingClientRect(); if (!r.width) return;
+  if (!mission) return; const tlc = $('tlc'), r = tlc.getBoundingClientRect(); if (!r.width || !r.height) return;
   const p = Math.min(devicePixelRatio, 2); tlc.width = r.width * p; tlc.height = r.height * p; const g = tlc.getContext('2d'); g.setTransform(p, 0, 0, p, 0, 0);
   const w = r.width, h = r.height, [t0, t1] = span(), X = jd => (jd - t0) / (t1 - t0) * w; g.clearRect(0, 0, w, h);
   const R = mission.radiation;
-  if (R && !isStar()) {
-    const n = R.jd.length, mx = Math.max(...R.gcr_rate);
-    for (let k = 0; k < n - 1; k++) { const x0 = X(R.jd[k]), x1 = X(R.jd[k + 1]);
-      g.fillStyle = `rgba(224,176,80,${Math.min(.9, R.spe_p30[k] * 3)})`; g.fillRect(x0, h * .72, x1 - x0 + .5, h * .28);
-      g.fillStyle = `rgba(200,200,200,${.08 + .4 * R.gcr_rate[k] / mx})`; g.fillRect(x0, 0, x1 - x0 + .5, h * .16); }
+  const star = isStar();
+  const lanes = [];
+  if (R && R.jd && R.jd.length > 1 && R.gcr_rate) {
+    const gcrB = seriesBounds(R.gcr_rate), speB = seriesBounds(R.spe_p30), betaB = R.beta ? seriesBounds(R.beta) : null;
+    const showStorms = !star || speB.mx > 1e-8;
+    if (showStorms) {
+      const mid = Math.round(h * 0.5);
+      lanes.push({ kind: 'gcr', y0: 1, y1: mid - 2, b: gcrB, vals: R.gcr_rate });
+      lanes.push({ kind: 'storm', y0: mid + 1, y1: h - 3, b: speB, vals: R.spe_p30 });
+    } else if (betaB) {
+      const thin = gcrB.flat ? 16 : Math.round(h * 0.46);
+      lanes.push({ kind: 'gcr', y0: 1, y1: thin, b: gcrB, vals: R.gcr_rate, stormsNone: true });
+      lanes.push({ kind: 'speed', y0: thin + 3, y1: h - 3, b: betaB, vals: R.beta });
+    }
+    const xs = R.jd.map(X);
+    const look = { gcr: ['#d0d0d0', 'rgba(154,154,154,.7)', '#cfcfcf', 1.35], storm: ['#e0b050', 'rgba(224,176,80,.55)', '#e0b050', 1.35], speed: ['#f2f2f2', 'rgba(242,242,242,.4)', '#f2f2f2', 1.6] };
+    if (lanes.length > 1) {
+      g.strokeStyle = '#2e2e2e'; g.lineWidth = 1;
+      const y = lanes[0].y1 + 1.5; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+    }
+    for (const lane of lanes) {
+      const [stroke, fill, ink, lw] = look[lane.kind];
+      paintSeries(g, xs, lane.vals, lane.b, lane.y0, lane.y1, w, stroke, fill, lw);
+      lane.ink = ink; lane.xs = xs;
+    }
+    const storm = lanes.find(l => l.kind === 'storm');
+    if (storm) {
+      storm.wins = stormWindows(storm.vals, storm.b);
+      g.strokeStyle = '#e0b050'; g.lineWidth = 1.5; g.fillStyle = '#e0b050';
+      for (const win of storm.wins) {
+        const x0 = xs[win.s], x1 = xs[win.e], xp = xs[win.bi];
+        if (x1 - x0 >= 8) {
+          g.beginPath(); g.moveTo(Math.round(x0) + 0.5, storm.y0 + 1); g.lineTo(Math.round(x0) + 0.5, storm.y1 - 1); g.stroke();
+          g.beginPath(); g.moveTo(Math.round(x1) + 0.5, storm.y0 + 1); g.lineTo(Math.round(x1) + 0.5, storm.y1 - 1); g.stroke();
+        }
+        g.fillRect(xp - 1.5, storm.y0, 3, 3);
+        win.x = xp;
+      }
+    }
   }
-  if (R && isStar()) {   // speed profile as a filled curve
-    g.beginPath(); g.moveTo(0, h); R.jd.forEach((jd, k) => g.lineTo(X(jd), h - R.beta[k] / Math.max(1e-9, Math.max(...R.beta)) * h * .8)); g.lineTo(w, h); g.closePath();
-    g.fillStyle = 'rgba(240,240,240,.08)'; g.fill(); g.strokeStyle = 'rgba(240,240,240,.5)'; g.stroke();
+  const chips = [];
+  for (const lane of lanes) {
+    const b = lane.b;
+    let text = lane.kind === 'gcr' ? (b.span <= 1e-6 ? `GCR ${sig(b.mx)} mSv/d` : `GCR ${sig(b.mn)}–${sig(b.mx)} mSv/d`)
+      : lane.kind === 'storm' ? (b.mx <= 1e-8 ? 'STORMS none' : b.span <= 1e-6 ? `STORMS ${oddsPct(b.mx)} /30d` : `STORMS ${oddsPct(b.mn)}–${oddsPct(b.mx)} /30d`)
+      : (b.span <= 1e-6 ? `β ${betaText(b.mx)}` : `β ${betaText(b.mn)}–${betaText(b.mx)}`);
+    if (lane.stormsNone) text += ' · STORMS none';
+    const y = Math.min(lane.y1 - 2, lane.y0 + 12);
+    lane.chip = laneChip(g, text, 3, y, lane.ink);
+    chips.push(lane.chip);
   }
-  for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1), stay = ph.name.includes('stay') || ph.name === 'cruise';
-    g.strokeStyle = stay ? '#6f8f5a' : '#3a3a3a'; g.strokeRect(a + .5, h * .2 + .5, Math.max(1, b - a - 1), h * .46);
-    g.fillStyle = stay ? 'rgba(156,207,122,.10)' : 'rgba(0,0,0,0)'; g.fillRect(a, h * .2, b - a, h * .46); }
-  for (const hz of mission.risk || []) if (hz.jd0 != null && !isStar()) { const x0 = X(Math.max(t0, hz.jd0)), x1 = Math.max(x0 + 2, X(Math.min(t1, hz.jd1 ?? hz.jd0)));
-    g.fillStyle = hz.level === 'HIGH' ? 'rgba(224,96,90,.55)' : 'rgba(224,176,80,.4)'; g.fillRect(x0, h * .24, x1 - x0, h * .38); }
+  const nameFloor = Math.max(8, ...chips, 0);
   g.font = '10px ' + MONO;
-  for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1); if (b - a < 40) continue; g.fillStyle = ph.name.includes('stay') ? '#9ccf7a' : '#8a8a8a'; g.fillText(cap(ph.name), a + 5, h * .2 + 13); }
-  if (!isStar() && R) { g.fillStyle = '#5a5a5a'; g.textAlign = 'right'; g.fillText('cosmic-ray rate', w - 4, 9); g.fillText('solar storm odds', w - 4, h - 3); g.textAlign = 'left'; }
-  $('ticks').innerHTML = mission.events.map(e => `<div class="tick" title="${esc((e.date || '') + ' ' + e.label)}" style="left:${(e.jd - t0) / (t1 - t0) * 100}%;background:${EVC[e.hazard ? 'hazard' : e.type]}"></div>`).join('');
+  for (const ph of mission.phases || []) {
+    const a = X(ph.jd0), b = X(ph.jd1), stay = /stay|surface/.test(ph.name);
+    g.fillStyle = stay ? '#9ccf7a' : 'rgba(242,242,242,.28)';
+    g.fillRect(a, h - 2, Math.max(1, b - a), 2);
+    const name = ph.name.toUpperCase(), tw = g.measureText(name).width;
+    if (b - a < tw + 10) continue;
+    const host = lanes[lanes.length - 1];
+    const y = host ? Math.min(host.y1 - 2, host.y0 + 12) : 12;
+    let x = a + 4; if (x < nameFloor) x = nameFloor;
+    if (x + tw + 8 > b) continue;
+    laneChip(g, name, x, y, stay ? '#9ccf7a' : '#8a8a8a');
+  }
+  const evTicks = [];
+  for (const e of mission.events) {
+    const x = X(e.jd), col = EVC[e.hazard ? 'hazard' : e.type] || '#f2f2f2';
+    const kind = e.hazard ? 'hz' : e.type;
+    const speedLane = lanes.find(l => l.kind === 'speed');
+    if (kind === 'flyby') tickStem(g, x, 0, 11, col, 'top');
+    else if (kind === 'dsm' && speedLane) tickStem(g, x, speedLane.y0, speedLane.y1, col, 'top');
+    else if (kind === 'dsm') tickStem(g, x, 0, 6, col, 'top');
+    else tickStem(g, x, 0, kind === 'hz' ? 13 : 9, col, 'top');
+    evTicks.push(`<div class="tick" title="${esc((e.date || '') + ' ' + e.label)}" style="left:${(e.jd - t0) / (t1 - t0) * 100}%"></div>`);
+  }
+  for (const b of (R && R.belts) || []) {
+    const x = X(b.jd);
+    tickStem(g, x, h - 15, h - 2, '#e0605a', 'bottom', 2);
+    evTicks.push(`<div class="tick" title="${esc('Radiation belt · ' + b.label)}" style="left:${(b.jd - t0) / (t1 - t0) * 100}%"></div>`);
+  }
+  const storm = lanes.find(l => l.kind === 'storm');
+  if (storm) for (const win of storm.wins || []) {
+    const lab = oddsPct(win.best), jd = R.jd[win.bi];
+    const tw = g.measureText(lab).width, right = win.x > w - tw - 16;
+    laneChip(g, lab, right ? win.x - tw - 12 : win.x + 5, storm.y1 - 2, '#e0b050');
+    evTicks.push(`<div class="tick" title="${esc(fmtDate(jd) + ' solar storm odds peak ' + lab + ' / 30 d')}" style="left:${(jd - t0) / (t1 - t0) * 100}%"></div>`);
+  }
+  $('ticks').innerHTML = evTicks.join('');
   const y0 = jdYear(t0), y1 = jdYear(t1), spanY = y1 - y0;
   const step = [1 / 12, 1 / 6, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000].find(s => spanY / s <= Math.max(3, Math.min(10, Math.floor(w / 75)))) || 1e6;
   const out = []; for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) out.push(y);
