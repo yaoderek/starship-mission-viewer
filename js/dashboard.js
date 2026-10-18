@@ -222,12 +222,15 @@ function drawIsru() {
   const ymin = 100, ymax = 1e5, ly = v => T + (h - T - B) * (1 - Math.log10(Math.max(ymin, v) / ymin) / Math.log10(ymax / ymin));
   g.font = '10px ' + MONO; g.strokeStyle = C.grid; g.fillStyle = C.axis;
   for (const v of [100, 1e3, 1e4, 1e5]) { g.beginPath(); g.moveTo(L, ly(v) + .5); g.lineTo(w - 10, ly(v) + .5); g.stroke(); g.fillText(v >= 1e3 ? (v / 1e3) + ' MW' : v + ' kW', 4, ly(v) + 3); }
-  for (const v of [30, 60, 120, 240, 480, 1000, 2000]) { g.beginPath(); g.moveTo(lx(v) + .5, T); g.lineTo(lx(v) + .5, h - B); g.stroke(); g.fillText(v, lx(v) - 8, h - 6); }
+  for (const v of [30, 60, 120, 240, 480, 1000, 2000]) { g.beginPath(); g.moveTo(lx(v) + .5, T); g.lineTo(lx(v) + .5, h - B); g.stroke(); const lab = String(v); g.fillText(lab, Math.min(lx(v) - 8, w - 4 - g.measureText(lab).width), h - 6); }
   g.strokeStyle = C.tot; g.lineWidth = 1.5; g.beginPath(); cu.forEach((q, k) => k ? g.lineTo(lx(q.days), ly(q.kw)) : g.moveTo(lx(q.days), ly(q.kw))); g.stroke(); g.lineWidth = 1;
   g.strokeStyle = C.surf; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(L, ly(I.power_kw_config)); g.lineTo(w - 10, ly(I.power_kw_config)); g.stroke(); g.setLineDash([]);
-  g.fillStyle = C.surf; g.fillText(`Planned plant ${int(I.power_kw_config)} kW`, L + 4, ly(I.power_kw_config) - 4);
+  const fit = (text, x) => Math.max(L, Math.min(x, w - 6 - g.measureText(text).width));
+  const plant = `Planned plant ${int(I.power_kw_config)} kW`;
+  g.fillStyle = C.surf; g.fillText(plant, fit(plant, L + 4), ly(I.power_kw_config) - 4);
   const x = lx(I.plan.prod_days), y = ly(I.plan.power_kw); g.fillStyle = I.feasible_at_config ? C.surf : C.belt; g.fillRect(x - 3, y - 3, 6, 6);
-  g.fillText(`This stay needs ${int(I.plan.power_kw)} kW`, Math.min(x + 7, w - 150), y - 6); g.fillStyle = C.axis; g.fillText('days of production', w - 120, h - 6);
+  const need = `This stay needs ${int(I.plan.power_kw)} kW`;
+  g.fillText(need, fit(need, x + 7), y - 6); g.fillStyle = C.axis; const xlab = 'days of production'; g.fillText(xlab, fit(xlab, w), h - 6);
 }
 const MONO = 'ui-monospace,"JetBrains Mono","DejaVu Sans Mono",Menlo,monospace';
 
@@ -355,9 +358,9 @@ function axes(g, L, T, w, h, ymax, tmax, yrs, DH, xlabel) {
   const sv = ymax >= 1e4, lab = v => !sv ? int(v) : v / 1000 < 1e4 ? sig(v / 1000) : (v / 1000).toExponential(0).replace('e+', 'e');   // axis in Sv when huge
   for (let v = 0; v <= ymax; v += step) { g.beginPath(); g.moveTo(L, Y(v) + .5); g.lineTo(L + w, Y(v) + .5); g.stroke(); g.fillText(lab(v), 4, Y(v) + 3); }
   const unit = yrs ? 365.25 : 1, xsStep = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 5000, 10000, 50000].map(s => s * (yrs ? 365.25 : 1)).concat(yrs ? [] : [30, 60, 90, 180, 365]).sort((a, b) => a - b).find(s => tmax / s <= 7) || tmax;
-  for (let v = 0; v <= tmax + 1e-9; v += xsStep) { g.beginPath(); g.moveTo(X(v) + .5, T); g.lineTo(X(v) + .5, T + h); g.stroke(); g.fillText(int(v / unit), X(v) - 4, DH - 7); }
+  for (let v = 0; v <= tmax + 1e-9; v += xsStep) { g.beginPath(); g.moveTo(X(v) + .5, T); g.lineTo(X(v) + .5, T + h); g.stroke(); const lab = int(v / unit); g.fillText(lab, Math.min(Math.max(2, X(v) - 4), L + w + 6 - g.measureText(lab).width), DH - 7); }
   g.textAlign = 'right'; g.fillText(xlabel, L + w - 4, T + h - 6); g.textAlign = 'left';
-  if (600 <= ymax && ymax < 6e4) { g.strokeStyle = C.lim; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(L, Y(600)); g.lineTo(L + w, Y(600)); g.stroke(); g.setLineDash([]); g.fillStyle = C.lim; g.fillText('career limit 600', L + w - 100, Y(600) - 4); }
+  if (600 <= ymax && ymax < 6e4) { g.strokeStyle = C.lim; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(L, Y(600)); g.lineTo(L + w, Y(600)); g.stroke(); g.setLineDash([]); g.fillStyle = C.lim; const limLab = 'career limit 600'; g.fillText(limLab, Math.max(L, L + w - g.measureText(limLab).width - 4), Y(600) - 4); }
   return [X, Y, sv ? 'Sv' : 'mSv'];
 }
 function drawChart(jd) {
@@ -368,7 +371,7 @@ function drawChart(jd) {
   const items = [['This run', C.tot], ['Expected', '#8a8a8a', [4, 3]], ['5–95% of runs', null, 'band'], ['Cosmic rays', C.gcr], ['Storms', C.spe], ['Belts', C.belt], ...(A.surface ? [['Surface', C.surf]] : [])];
   const T = legend(g, items, DW) + 18, L = 44, B = 22, w = DW - L - 10, h = DH - T - B;
   const ymax = Math.max(50, A.band.hi[N - 1], run.tot[N - 1]) * 1.1;
-  if (P.surf.some(Boolean)) for (const ph of mission.phases || []) if (ph.name.includes('stay')) { const a = L + (ph.jd0 - J[0]) / tmax * w, b = L + (ph.jd1 - J[0]) / tmax * w; g.fillStyle = 'rgba(156,207,122,.07)'; g.fillRect(a, T, b - a, h); g.fillStyle = '#6f8f5a'; g.fillText('on surface', a + 4, T + h - 5); }
+  if (P.surf.some(Boolean)) for (const ph of mission.phases || []) if (ph.name.includes('stay')) { const a = L + (ph.jd0 - J[0]) / tmax * w, b = L + (ph.jd1 - J[0]) / tmax * w; g.fillStyle = 'rgba(156,207,122,.07)'; g.fillRect(a, T, b - a, h); g.fillStyle = '#6f8f5a'; const sl = 'on surface'; g.fillText(sl, Math.min(a + 4, L + w - g.measureText(sl).width), T + h - 5); }
   const [X, Y, unit] = axes(g, L, T, w, h, ymax, tmax, yrs, DH, yrs ? 'years →' : 'mission day →');
   g.fillStyle = C.axis; g.fillText(unit, 4, T - 6);
   const now = jd - J[0], [kn, fn] = gridAt(J, jd), upto = kn + 1;
@@ -551,30 +554,106 @@ function renderHazards() {
 }
 
 // ------------------------------------------------------------------ timeline
+// A swing under ~8% stays a thin line. Sunspots use a fixed 0–250 scale so a quiet Sun stays low.
+function seriesBounds(arr) {
+  let mn = Infinity, mx = -Infinity;
+  for (let i = 0; i < (arr ? arr.length : 0); i++) { const v = arr[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+  if (!isFinite(mn)) return { mn: 0, mx: 0, span: 0, flat: true };
+  const span = mx - mn;
+  const flat = span <= 1e-6 || Math.abs(mx) < 1e-9 || span / Math.abs(mx) < 0.08;
+  return { mn, mx, span, flat };
+}
+const betaText = v => { if (v < 5e-4) return '0'; const s = pct(v); return s.endsWith('%') ? s + ' c' : s; };
+function laneChip(g, text, x, y, color) {
+  g.font = '10px ' + MONO; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  const tw = Math.ceil(g.measureText(text).width);
+  g.fillStyle = 'rgba(5,5,5,.9)'; g.fillRect(x, y - 9, tw + 6, 12);
+  g.fillStyle = color; g.fillText(text, x + 3, y);
+  return x + tw + 8;
+}
+function paintSeries(g, xs, vals, b, y0, y1, w, stroke, fill, lw = 1.25) {
+  const n = vals.length, mid = (y0 + y1) / 2;
+  g.lineWidth = lw; g.lineJoin = 'round'; g.lineCap = 'round'; g.strokeStyle = stroke;
+  if (b.flat || b.span <= 1e-9) {
+    const y = Math.round(mid) + 0.5;
+    g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+    return;
+  }
+  const Y = v => y1 - 1.5 - ((v - b.mn) / b.span) * (y1 - y0 - 3);
+  g.beginPath(); g.moveTo(xs[0], y1 - 0.5);
+  for (let k = 0; k < n; k++) g.lineTo(xs[k], Y(vals[k]));
+  g.lineTo(xs[n - 1], y1 - 0.5); g.closePath();
+  g.fillStyle = fill; g.fill();
+  g.beginPath();
+  for (let k = 0; k < n; k++) { if (k) g.lineTo(xs[k], Y(vals[k])); else g.moveTo(xs[k], Y(vals[k])); }
+  g.stroke();
+}
+function tickStem(g, x, y0, y1, color, cap, lw = 1.25) {
+  const px = Math.round(x) + 0.5;
+  g.strokeStyle = color; g.lineWidth = lw; g.beginPath(); g.moveTo(px, y0); g.lineTo(px, y1); g.stroke();
+  if (!cap) return;
+  g.fillStyle = color; const hw = lw > 1.5 ? 3 : 2;
+  g.fillRect(Math.round(x) - hw, cap === 'top' ? y0 : y1 - 2, hw * 2 + 1, 2);
+}
 export function drawTimeline() {
-  if (!mission) return; const tlc = $('tlc'), r = tlc.getBoundingClientRect(); if (!r.width) return;
+  if (!mission) return; const tlc = $('tlc'), r = tlc.getBoundingClientRect(); if (!r.width || !r.height) return;
   const p = Math.min(devicePixelRatio, 2); tlc.width = r.width * p; tlc.height = r.height * p; const g = tlc.getContext('2d'); g.setTransform(p, 0, 0, p, 0, 0);
   const w = r.width, h = r.height, [t0, t1] = span(), X = jd => (jd - t0) / (t1 - t0) * w, jdNow = t0 + t * (t1 - t0); g.clearRect(0, 0, w, h);
-  const R = mission.radiation;
-  if (A) {   // sunspots along the mission (top) and the storms of this run so far (bottom)
-    const P = A.P; g.fillStyle = 'rgba(224,176,80,.28)'; g.beginPath(); g.moveTo(X(P.J[0]), h * .17);
-    for (let k = 0; k < P.n; k++) g.lineTo(X(P.J[k]), h * .17 - Math.min(1, Rad.ssn(P.Y[k]) / 250) * h * .15);
-    g.lineTo(X(P.J[P.n - 1]), h * .17); g.closePath(); g.fill();
-    for (const s of run.storms) if (s.jd <= jdNow) { const sz = { minor: .35, strong: .6, severe: .85, extreme: 1 }[Rad.stormClass(s.F)]; g.fillStyle = `rgba(224,176,80,${.5 + .5 * sz})`; g.fillRect(X(s.jd) - 1, h - h * .28 * sz, 2.5, h * .28 * sz); }
+  const R = mission.radiation, star = isStar(), lanes = [], SZ = { minor: .35, strong: .6, severe: .85, extreme: 1 };
+  if (A && A.P) {   // live model: sunspot cycle on a fixed 0–250 scale, and the storms rolled so far
+    const P = A.P, ssn = []; for (let k = 0; k < P.n; k++) ssn.push(Rad.ssn(P.Y[k]));
+    const raw = seriesBounds(ssn), scale = Math.max(250, raw.mx), mid = Math.round(h * 0.5);
+    lanes.push({ kind: 'sun', y0: 1, y1: mid - 2, b: raw.flat ? raw : { mn: 0, mx: scale, span: scale, flat: false }, vals: ssn, xs: P.J.map(X),
+      text: raw.span <= 1 ? `SUNSPOTS ${Math.round(raw.mx)}` : `SUNSPOTS ${Math.round(raw.mn)}–${Math.round(raw.mx)}` });
+    lanes.push({ kind: 'hits', y0: mid + 1, y1: h - 3 });
+  } else if (R && R.jd && R.jd.length > 1 && R.gcr_rate && R.beta) {
+    const gcrB = seriesBounds(R.gcr_rate), betaB = seriesBounds(R.beta), thin = gcrB.flat ? 16 : Math.round(h * 0.46), xs = R.jd.map(X);
+    lanes.push({ kind: 'gcr', y0: 1, y1: thin, b: gcrB, vals: R.gcr_rate, xs, text: (gcrB.span <= 1e-6 ? `GCR ${sig(gcrB.mx)} mSv/d` : `GCR ${sig(gcrB.mn)}–${sig(gcrB.mx)} mSv/d`) + (star ? ' · STORMS none' : '') });
+    lanes.push({ kind: 'speed', y0: thin + 3, y1: h - 3, b: betaB, vals: R.beta, xs, text: betaB.span <= 1e-6 ? `β ${betaText(betaB.mx)}` : `β ${betaText(betaB.mn)}–${betaText(betaB.mx)}` });
   }
-  if (R && isStar()) {   // speed profile as a filled curve
-    g.beginPath(); g.moveTo(0, h); R.jd.forEach((jd, k) => g.lineTo(X(jd), h - R.beta[k] / Math.max(1e-9, Math.max(...R.beta)) * h * .8)); g.lineTo(w, h); g.closePath();
-    g.fillStyle = 'rgba(240,240,240,.08)'; g.fill(); g.strokeStyle = 'rgba(240,240,240,.5)'; g.stroke();
+  const look = { sun: ['#e0b050', 'rgba(224,176,80,.5)', '#e0b050', 1.35], gcr: ['#d0d0d0', 'rgba(154,154,154,.7)', '#cfcfcf', 1.35], speed: ['#f2f2f2', 'rgba(242,242,242,.4)', '#f2f2f2', 1.6] };
+  if (lanes.length > 1) { g.strokeStyle = '#2e2e2e'; g.lineWidth = 1; const y = lanes[0].y1 + 1.5; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+  const chips = [];
+  for (const lane of lanes) {
+    if (lane.kind === 'hits') {
+      const hits = (run && run.storms || []).filter(s => s.jd <= jdNow), spanH = lane.y1 - lane.y0 - 3;
+      if (!hits.length) { g.strokeStyle = 'rgba(224,176,80,.45)'; g.lineWidth = 1; const midY = Math.round((lane.y0 + lane.y1) / 2) + .5; g.beginPath(); g.moveTo(0, midY); g.lineTo(w, midY); g.stroke(); }
+      for (const s of hits) { const sz = SZ[Rad.stormClass(s.F)] || .4, y1 = lane.y1 - 1; tickStem(g, X(s.jd), y1 - spanH * sz, y1, '#e0b050', 'top'); }
+      lane.text = hits.length ? `STORMS ${hits.length} this run` : 'STORMS none yet'; lane.ink = '#e0b050'; lane.hits = hits;
+    } else {
+      const [stroke, fill, ink, lw] = look[lane.kind];
+      paintSeries(g, lane.xs, lane.vals, lane.b, lane.y0, lane.y1, w, stroke, fill, lw); lane.ink = ink;
+    }
+    chips.push(laneChip(g, lane.text, 3, Math.min(lane.y1 - 2, lane.y0 + 12), lane.ink));
   }
-  for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1), stay = ph.name.includes('stay') || ph.name === 'cruise';
-    g.strokeStyle = stay ? '#6f8f5a' : '#3a3a3a'; g.strokeRect(a + .5, h * .2 + .5, Math.max(1, b - a - 1), h * .46);
-    g.fillStyle = stay ? 'rgba(156,207,122,.10)' : 'rgba(0,0,0,0)'; g.fillRect(a, h * .2, b - a, h * .46); }
-  for (const hz of hzList.length ? hzList : mission.risk || []) if (hz.jd0 != null && !isStar()) { const x0 = X(Math.max(t0, hz.jd0)), x1 = Math.max(x0 + 2, X(Math.min(t1, hz.jd1 ?? hz.jd0)));
-    g.fillStyle = hz.level === 'HIGH' ? 'rgba(224,96,90,.55)' : 'rgba(224,176,80,.4)'; g.fillRect(x0, h * .24, x1 - x0, h * .38); }
+  const nameFloor = Math.max(8, ...chips, 0);
   g.font = '10px ' + MONO;
-  for (const ph of mission.phases || []) { const a = X(ph.jd0), b = X(ph.jd1); if (b - a < 40) continue; g.fillStyle = ph.name.includes('stay') ? '#9ccf7a' : '#8a8a8a'; g.fillText(cap(ph.name), a + 5, h * .2 + 13); }
-  if (A) { g.fillStyle = '#7a6a48'; g.textAlign = 'right'; g.fillText('sunspots', w - 4, 9); g.fillText(`storms this run: ${run.storms.filter(s => s.jd <= jdNow).length}`, w - 4, h - 3); g.textAlign = 'left'; }
-  $('ticks').innerHTML = mission.events.map(e => `<div class="tick" title="${esc((e.date || '') + ' ' + e.label)}" style="left:${(e.jd - t0) / (t1 - t0) * 100}%;background:${EVC[e.hazard ? 'hazard' : e.type]}"></div>`).join('');
+  for (const ph of mission.phases || []) {
+    const a = X(ph.jd0), b = X(ph.jd1), stay = /stay|surface/.test(ph.name);
+    g.fillStyle = stay ? '#9ccf7a' : 'rgba(242,242,242,.28)'; g.fillRect(a, h - 2, Math.max(1, b - a), 2);
+    const name = ph.name.toUpperCase(), tw = g.measureText(name).width;
+    if (b - a < tw + 10) continue;
+    const host = lanes[lanes.length - 1]; const y = host ? Math.min(host.y1 - 2, host.y0 + 12) : 12;
+    let x = a + 4; if (x < nameFloor) x = nameFloor; if (x + tw + 8 > b) continue;
+    laneChip(g, name, x, y, stay ? '#9ccf7a' : '#8a8a8a');
+  }
+  const evTicks = [];
+  for (const e of mission.events) {
+    const x = X(e.jd), col = EVC[e.hazard ? 'hazard' : e.type] || '#f2f2f2', kind = e.hazard ? 'hz' : e.type;
+    const speedLane = lanes.find(l => l.kind === 'speed');
+    if (kind === 'flyby') tickStem(g, x, 0, 11, col, 'top');
+    else if (kind === 'dsm' && speedLane) tickStem(g, x, speedLane.y0, speedLane.y1, col, 'top');
+    else if (kind === 'dsm') tickStem(g, x, 0, 6, col, 'top');
+    else tickStem(g, x, 0, kind === 'hz' ? 13 : 9, col, 'top');
+    evTicks.push(`<div class="tick" title="${esc((e.date || '') + ' ' + e.label)}" style="left:${(e.jd - t0) / (t1 - t0) * 100}%"></div>`);
+  }
+  for (const b of (A && A.belts) || (R && R.belts) || []) {
+    tickStem(g, X(b.jd), h - 15, h - 2, '#e0605a', 'bottom', 2);
+    evTicks.push(`<div class="tick" title="${esc('Radiation belt · ' + (b.label || b.body || ''))}" style="left:${(b.jd - t0) / (t1 - t0) * 100}%"></div>`);
+  }
+  const hitsLane = lanes.find(l => l.kind === 'hits');
+  if (hitsLane) for (const s of hitsLane.hits || []) evTicks.push(`<div class="tick" title="${esc('Solar storm (' + Rad.stormClass(s.F) + ') +' + sig(s.dose) + ' mSv')}" style="left:${(s.jd - t0) / (t1 - t0) * 100}%"></div>`);
+  $('ticks').innerHTML = evTicks.join('');
   const y0 = jdYear(t0), y1 = jdYear(t1), spanY = y1 - y0;
   const step = [1 / 12, 1 / 6, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000].find(s => spanY / s <= Math.max(3, Math.min(10, Math.floor(w / 75)))) || 1e6;
   const out = []; for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) out.push(y);
@@ -594,32 +673,49 @@ export function bindTimeline() {
 }
 
 // ------------------------------------------------------------------ crew cabin cutaway
+// Dose colour is the console status ramp (green → amber → red), unlit so the legend matches the hull.
+const DOSE_STOPS = [[0, '#245c40'], [1, '#5fbf7f'], [5, '#e0b050'], [20, '#e0605a'], [80, '#f2f2f2']].map(([r, hex]) => ({ r, hex, col: new THREE.Color(hex) }));
+const doseF = v => Math.log10(1 + Math.max(0, v));
+const doseU = v => Math.max(0, Math.min(1, doseF(v) / doseF(DOSE_STOPS[DOSE_STOPS.length - 1].r)));
+const doseTmp = new THREE.Color();
+function doseInto(rate, out) {
+  const x = Math.max(0, rate); let k = 0; while (k < DOSE_STOPS.length - 2 && x > DOSE_STOPS[k + 1].r) k++;
+  const a = DOSE_STOPS[k], b = DOSE_STOPS[k + 1], t = (doseF(x) - doseF(a.r)) / (doseF(b.r) - doseF(a.r) || 1);
+  return out.copy(a.col).lerp(b.col, Math.max(0, Math.min(1, t)));
+}
+function doseScaleHTML(rate) {
+  const grad = DOSE_STOPS.map(s => `${s.hex} ${(doseU(s.r) * 100).toFixed(1)}%`).join(',');
+  const ticks = DOSE_STOPS.map(s => `<em style="left:${(doseU(s.r) * 100).toFixed(1)}%">${s.r >= 80 ? '80+' : s.r}</em>`).join('');
+  const num = rate >= 10 ? rate.toFixed(1) : rate.toFixed(2);
+  return `<span class="scale" title="Dose rate, mSv per day"><i style="background:linear-gradient(90deg,${grad})"><span class="mark" style="left:${(doseU(rate) * 100).toFixed(1)}%"></span></i><span class="ticks">${ticks}</span></span><b>${num} mSv/d</b>`;
+}
 let cab = null;
 function initCabin() {
   const host = $('cutwrap'), cv = $('cut');
   const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true, alpha: true });
   r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setClearColor(0x000000, 0);
   const S = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 400); cam.up.set(0, 0, 1);
-  S.add(new THREE.AmbientLight(0xffffff, .55)); const dl = new THREE.DirectionalLight(0xffffff, 1.1); dl.position.set(6, -9, 12); S.add(dl);
+  S.add(new THREE.AmbientLight(0xffffff, .95)); const key = new THREE.DirectionalLight(0xffffff, .7); key.position.set(5, -8, 12); S.add(key);
+  const fill = new THREE.DirectionalLight(0xffffff, .4); fill.position.set(-8, 6, 4); S.add(fill);
   const RH = 4.5, HG = 7.0, ARC = Math.PI * 1.25, A0 = Math.PI * 0.375;
-  const heatCols = ['#1a1a1a', '#5a5a5a', '#d0a040', '#e0605a'].map(c => new THREE.Color(c));
-  const heat = x => { x = Math.max(0, Math.min(1, x || 0)); const s = x * 3, k = Math.min(2, Math.floor(s)); return heatCols[k].clone().lerp(heatCols[k + 1], s - k); };
   const hullGeo = new THREE.CylinderGeometry(RH, RH, HG, 64, 10, true, A0, ARC); hullGeo.rotateX(Math.PI / 2);
   hullGeo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(hullGeo.attributes.position.count * 3), 3));
-  const hull = new THREE.Mesh(hullGeo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: .82 })); S.add(hull);
-  S.add(new THREE.LineSegments(new THREE.EdgesGeometry(hullGeo, 30), new THREE.LineBasicMaterial({ color: 0x8a8a8a })));
-  const deck = new THREE.Mesh(new THREE.CircleGeometry(RH, 64, A0, ARC), new THREE.MeshLambertMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide })); deck.position.z = -HG / 2; S.add(deck);
-  const deck2 = deck.clone(); deck2.position.z = 0.6; deck2.material = deck.material.clone(); deck2.material.transparent = true; deck2.material.opacity = .35; S.add(deck2);
+  const hull = new THREE.Mesh(hullGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })); S.add(hull);
+  S.add(new THREE.LineSegments(new THREE.EdgesGeometry(hullGeo, 30), new THREE.LineBasicMaterial({ color: 0xd0d0d0 })));
+  const deckGeo = new THREE.CircleGeometry(RH, 64, A0, ARC);
+  deckGeo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(deckGeo.attributes.position.count * 3), 3));
+  const deck = new THREE.Mesh(deckGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })); deck.position.z = -HG / 2; S.add(deck);
+  const deck2 = deck.clone(); deck2.position.z = 0.6; deck2.material = deck.material.clone(); deck2.material.transparent = true; deck2.material.opacity = .42; S.add(deck2);
   const shG = new THREE.CylinderGeometry(1.6, 1.6, 2.4, 40, 1, true, A0, ARC); shG.rotateX(Math.PI / 2);
-  const shMat = new THREE.MeshLambertMaterial({ color: 0x5a5a5a, transparent: true, opacity: .55, side: THREE.DoubleSide }), shelter = new THREE.Mesh(shG, shMat); shelter.position.z = -HG / 2 + 1.2; S.add(shelter);
-  const shEdge = new THREE.LineSegments(new THREE.EdgesGeometry(shG, 30), new THREE.LineBasicMaterial({ color: 0xd0d0d0 })); shEdge.position.copy(shelter.position); S.add(shEdge);
+  const shMat = new THREE.MeshBasicMaterial({ color: 0x245c40, transparent: true, opacity: .72, side: THREE.DoubleSide }), shelter = new THREE.Mesh(shG, shMat); shelter.position.z = -HG / 2 + 1.2; S.add(shelter);
+  const shEdge = new THREE.LineSegments(new THREE.EdgesGeometry(shG, 30), new THREE.LineBasicMaterial({ color: 0xf2f2f2 })); shEdge.position.copy(shelter.position); S.add(shEdge);
   const crew = new THREE.Group(); S.add(crew);
   const crewGeo = {
     leg: new THREE.CapsuleGeometry(0.06, 0.42, 2, 6), torso: new THREE.BoxGeometry(0.36, 0.48, 0.2),
     head: new THREE.SphereGeometry(0.15, 12, 8), visor: new THREE.BoxGeometry(0.16, 0.06, 0.04), arm: new THREE.CapsuleGeometry(0.045, 0.36, 2, 6),
   };
   const suitMat = new THREE.MeshLambertMaterial({ color: 0xd8dee4 }), visorMat = new THREE.MeshLambertMaterial({ color: 0x141414 });
-  cab = { r, S, cam, host, hull, hullGeo, heat, shelter, shEdge, shMat, crew, crewGeo, suitMat, visorMat, RH, HG, w: 1, h: 1 };
+  cab = { r, S, cam, host, hull, hullGeo, deckGeo, shelter, shEdge, shMat, crew, crewGeo, suitMat, visorMat, RH, HG, w: 1, h: 1 };
   const fit = () => {
     const b = host.getBoundingClientRect(); cab.w = Math.max(1, b.width); cab.h = Math.max(1, b.height);
     r.setSize(cab.w, cab.h, false); cam.aspect = cab.w / cab.h;
@@ -693,16 +789,28 @@ function cabinFor(m) {
   for (let k = 0; k < n; k++) cab.crew.add(crewFigure(k / Math.max(1, n) * Math.PI * 2 + 0.4));
   const p = m.params || {};
   $('cutnote').textContent = view !== 'cabin' ? '' : isStar() ? (p.absorbs ? 'Fuel tanks wrap the crew' : !m.summary.crew ? 'Uncrewed: no cabin' : `${sig(p.shield)} g/cm² shielding`) : `hull 4 mm 304L${shield.wall ? ` + ${shield.wall} g/cm² water` : ''} · ${shield.shelter ? `shelter ${shield.shelter} g/cm²` : 'no shelter'}`;
-  cab.astro = !!p.absorbs; cab.probe = isStar() && !m.summary.crew;
+  cab.probe = isStar() && !m.summary.crew;
+}
+function paintDose(pos, col, rateAt) {
+  for (let k = 0; k < pos.count; k++) { const c = doseInto(rateAt(k), doseTmp); col.setXYZ(k, c.r, c.g, c.b); }
+  col.needsUpdate = true;
 }
 function updateCabin(jd) {
   if (!cab) return; const rate = rateNow(jd);
   if (rate == null) { cab.r.render(cab.S, cab.cam); return; }
-  const rn = Math.min(1, Math.log10(1 + rate) / Math.log10(51));
-  const col = cab.hullGeo.attributes.color, P = cab.hullGeo.attributes.position;
-  for (let k = 0; k < P.count; k++) { const z = P.getZ(k) / cab.HG + .5; const c = cab.astro ? new THREE.Color('#7a5a2a').lerp(new THREE.Color('#d09040'), .5 + .3 * Math.sin(z * 8 + jd * .2)) : cab.heat(rn * (0.75 + 0.25 * Math.sin(z * 6 + jd * .3))); col.setXYZ(k, c.r, c.g, c.b); }
-  col.needsUpdate = true;
-  const sh = !!A && shield.shelter > 0; cab.shelter.visible = cab.shEdge.visible = sh; cab.shMat.color.copy(cab.heat(rn * .35));
-  $('cutleg').innerHTML = `<b>${rate.toFixed(2)} mSv/d</b>`;
+  const sh = !!A && shield.shelter > 0, cool = rate * (sh ? 0.2 : 0.72);
+  const P = cab.hullGeo.attributes.position;
+  paintDose(P, cab.hullGeo.attributes.color, k => {
+    const z01 = P.getZ(k) / cab.HG + .5, ang = Math.atan2(P.getY(k), P.getX(k));
+    const w = Math.min(1, Math.max(0, .06 + .94 * z01 + .1 * Math.sin(ang * 3)));
+    return cool + (rate - cool) * w;
+  });
+  const D = cab.deckGeo.attributes.position;
+  paintDose(D, cab.deckGeo.attributes.color, k => {
+    const rad = Math.hypot(D.getX(k), D.getY(k));
+    return rad < 1.55 && sh ? cool : cool + (rate - cool) * Math.min(1, rad / cab.RH);
+  });
+  cab.shelter.visible = cab.shEdge.visible = sh; if (sh) doseInto(cool, cab.shMat.color);
+  $('cutleg').innerHTML = doseScaleHTML(rate);
   cab.r.render(cab.S, cab.cam);
 }
