@@ -69,7 +69,7 @@ const LETHAL = 6000;
 function starRisk(m) { const T = m.radiation.totals, lethal = T.acute >= LETHAL; return { T, lethal, cancer: Rad.cancerChance(T.total_mean), sick: Rad.sickness(T.acute), sort: lethal ? 2 + T.acute / 1e12 : Rad.cancerChance(T.total_mean) }; }
 const probeTip = m => m.summary.crew ? '' : ' title="Uncrewed: what a crew would receive in this hull"';
 function starDoseCell(m) { const { T, lethal } = starRisk(m), c = m.summary.crew ? '' : 'dim';
-  return `<span class="${c}"${probeTip(m)}>${lethal ? '<span class="no">lethal</span>' : T.total_mean > 10000 ? `<span class="no">${bigDose(T.total_mean)}</span>` : doseCell(T.total_mean)}</span>`; }
+  return `<span class="${c}"${probeTip(m)}>${lethal ? '<span class="no">lethal</span>' : T.total_mean > 10000 ? `<span class="no">${T.total_mean >= 1e7 ? sig(T.total_mean / 1e6) + 'k' : sig(T.total_mean / 1000)} Sv</span>` : doseCell(T.total_mean)}</span>`; }
 function starCancerCell(m) { const r = starRisk(m), c = m.summary.crew ? '' : 'dim';
   return `<span class="${c}"${probeTip(m)}>${r.lethal ? '<span class="no">—</span>' : `<span class="${r.T.total_mean > 600 ? 'no' : r.T.total_mean > 300 ? 'wn' : ''}">${Rad.cancerLabel(r.T.total_mean)}</span>`}</span>`; }
 const doseCell = v => v == null ? '<span class="dim">—</span>' : `<span class="${v > 600 ? 'no' : v > 300 ? 'wn' : ''}">${int(v)}</span>`;
